@@ -1,6 +1,6 @@
 Vision and Overview
 ===
-Our vision is to create a network of Market Risk and CVA practitioners around a free, open-source implementation of the Standardised Approach Basel III Market Risk Capital rules (aka FRTB).  Our calculators also encompass the Basel III CVA Standardised Approach and the Basel III CVA Basic Approach.  The calculators are flexible and can be configured for a variety of regional variations to the rules.
+Our vision is to create a network of Market Risk and CVA practitioners around a free, open-source implementation of the Basel III Standardised Approach Market Risk Capital rules (aka FRTB).  Our calculators also encompass the Basel III CVA Standardised Approach and the Basel III CVA Basic Approach.  The calculators are flexible and can be configured for a variety of regional variations to the rules.
 
 Based on these core calculators we have also developed some tools for completing regulatory reports, for drill-down and analysis of and explaining the capital charges and a rigorous and comprehensive testing framework.  These are available separately - see below or [contact us](mailto:info@frtb.net).
 
