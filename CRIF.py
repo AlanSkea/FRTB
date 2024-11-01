@@ -534,7 +534,7 @@ CRIFColumnMap_CVA = {
         'Label1'         : 'Tenor',
         'Label2'         : 'C_Hedge',
         'Lael3'          : 'ParentName',
-        'CerditQuality'  : 'IG_HYNR',
+        'CreditQuality'  : 'IG_HYNR',
         'Amount'         : 'Sensitivity',
         'Qualifier'      : 'CreditName',
     },
@@ -593,7 +593,7 @@ CRIFColumnMap_CVA = {
         'Label2'         : 'Region',
         'Amount'         : 'EAD',
         'Label3'         : 'CounterpartyGroup',
-        'CerditQuality'  : 'IG_HYNR',
+        'CreditQuality'  : 'IG_HYNR',
         'UltimateParent' : 'ParentName',
     },
     'CB_FULL' : {                               # This one needs some code to set the PositionType appropriately (Exposure / Hedge)
@@ -640,6 +640,26 @@ class CRIF(FNetF.FNetF):
         if not variants[riskClass] is None:
             ndf = ndf[ndf['Variant'] == variants[riskClass]].drop(columns=['Variant'])
 
+        # If we have SubBuckets then break them out
+        #
+        if 'SubBucket' in FNetF.FNetFieldType[riskClass].keys():
+            if riskClass.startswith('MS_CR'):
+                CBBkt = self._config.getConfigItem('MS_CR', 'CoveredBondBucket')
+                HQ = self._config.getConfigItem('MS_CR', 'CoveredBondHighQuality')
+
+                if riskClass .endswith('Delta'):
+                    ndf.loc[(ndf['Bucket']==CBBkt) & (ndf['Rating'].isin(HQ)), ['Bucket']] = CBBkt+'a'
+                    ndf.loc[(ndf['Bucket']==CBBkt) & (~ndf['Rating'].isin(HQ)), ['Bucket']] = CBBkt+'b'
+                else:
+                    # The SubBucket is only used in MS_CRDelta and so can be anything for the others
+                    # as we don't have Rating we just assign arbitrarily
+                    ndf.loc[ndf['Bucket']==CBBkt, ['Bucket']] = CBBkt+'b'
+
+            SubBuckets = self._config.getConfigItem(riskClass[:5], 'Bucket')[['Bucket', 'SubBucket']]
+            bktMap = dict([(sb['Bucket']+sb['SubBucket'], (sb['Bucket'], sb['SubBucket'])) for _, sb in SubBuckets.iterrows()])
+            ndf.loc[:, 'SubBucket'] = ndf['Bucket'].apply(lambda x : bktMap[x][1] if x in bktMap.keys() else x)
+            ndf.loc[:, 'Bucket'] = ndf['Bucket'].apply(lambda x : bktMap[x][0] if x in bktMap.keys() else x)
+
         #
         # Special magic for riskClass specific transformations
         #
@@ -656,11 +676,6 @@ class CRIF(FNetF.FNetF):
             ndf.loc[:, 'Tenor'] = ndf['Tenor'].apply(lambda x : 0.0 if x in ['INFL', 'IR'] else x)
         elif riskClass == 'MS_EQDelta':
             ndf.loc[:, 'SpotRepo'] = ndf['SpotRepo'].str.capitalize()
-        elif riskClass == 'CS_CCDelta':
-            def hasSubBucket(s):
-                return True if s[-1].isalpha() else False
-
-            ndf.loc[:, 'SubBucket'] = ndf['Bucket'].apply(lambda x : x[-1] if hasSubBucket(x) else "")
         elif riskClass[:5] == 'MD_CR':
             ndf.loc[:, 'Seniority'] = ndf.apply(lambda x : 'COVERED' if x['CoveredBondInd'] == 'Y' else x['Seniority'], axis=1)
         elif riskClass[:5] == 'CS_BA':  # BAExposure or BAHedge.  These both become BA_CVA
@@ -765,7 +780,7 @@ class CRIF(FNetF.FNetF):
         res = []
         sid = 0
 
-        if 'SubBucket' in ndf.columns:
+        if 'SubBucket' in ndf.columns and not rc.startswith('MS_CR'):
             ndf.loc[:, 'Bucket'] = ndf['Bucket'] + ndf['SubBucket']
 
         if rc == 'CS_CCDelta':

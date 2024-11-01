@@ -321,7 +321,7 @@ class SA_SBM_Calc(FRTBCalculator.FRTBCalculator):
 
         if riskType == 'Delta':
             RWBucket = self.getConfigItem('DeltaBucketRiskWeight')
-            df.loc[:, 'RiskWeight'] = df['Bucket'].apply(lambda bucket : RWBucket.at[bucket])
+            df.loc[:, 'RiskWeight'] = df.apply(lambda r : RWBucket.at[r['Bucket']+r['SubBucket']], axis=1)
         elif riskType == 'Vega':
             RWVega = self.getConfigItem('VegaRiskWeight')
             df.loc[:, 'RiskWeight'] = RWVega
@@ -512,13 +512,10 @@ class MS_CR_SA_SBM_Calc(SA_SBM_Calc):
             return super().getRiskWeights(riskClass, df)
 
         RWBucket = self.getConfigItem('DeltaBucketRiskWeight')
-        RWCovBondAA = self.getConfigItem('DeltaCovBondAARiskWeight')
         CovBondBucket = self.getConfigItem('CoveredBondBucket')
         CovBondHighQuality = self.getConfigItem('CoveredBondHighQuality')
         ndf = df.reset_index()
-        ndf['RiskWeight'] = ndf['Bucket'].apply(lambda bucket: RWBucket.at[bucket])
-        # TODO: Note: this will be different in EU
-        ndf.loc[(ndf['Bucket']==CovBondBucket) & (ndf['Rating'].isin(CovBondHighQuality)), 'RiskWeight'] = RWCovBondAA
+        ndf['RiskWeight'] = ndf.apply(lambda r: RWBucket.at[r['Bucket']+r['SubBucket']], axis=1)
         return ndf.set_index(df.index)
 
 
@@ -797,11 +794,11 @@ class MS_EQ_SA_SBM_Calc(SA_SBM_Calc):
 
         if riskType == 'Delta':
             RWBucket = self.getConfigItem('DeltaBucketRiskWeight')
-            df.loc[:, 'RiskWeight'] = df.apply(lambda row : RWBucket.at[row['SpotRepo'], row['Bucket']], axis=1)
+            df.loc[:, 'RiskWeight'] = df.apply(lambda row : RWBucket.at[row['SpotRepo'], row['Bucket']+row['SubBucket']], axis=1)
         elif riskType == 'Vega':
             RWVega = self.getConfigItem('VegaRiskWeight')
-            bucketInfo = self.getConfigItem('Bucket').set_index('Bucket')
-            df.loc[:, 'RiskWeight'] = df['Bucket'].apply(lambda bucket : RWVega.at[bucketInfo.at[bucket, 'MarketCap'], 'RiskWeight'])
+            bucketInfo = self.getConfigItem('Bucket').set_index(['Bucket', 'SubBucket'])
+            df.loc[:, 'RiskWeight'] = df.apply(lambda r : RWVega.at[bucketInfo.at[(r['Bucket'],r['SubBucket']), 'MarketCap'], 'RiskWeight'], axis=1)
         else:
             # Curvature - is there any risk weight for curvature?
             # CVR+ and CVR- are already delta-neutralised so nothing to do.
@@ -1059,7 +1056,7 @@ class CS_CC_SA_SBM_Calc(SA_SBM_Calc):
         RW = self.getConfigItem('DeltaRiskWeight')
 
         if self._regulator == 'EU-EBA':
-            ndf.loc[:, 'RiskWeight'] = ndf.apply(lambda x : RW.iloc[0, :].at[x['Bucket']], axis=1)
+            ndf.loc[:, 'RiskWeight'] = ndf.apply(lambda x : RW.iloc[0, :].at[x['Bucket']+x['SubBucket']], axis=1)
         else:
             ndf.loc[:, 'RiskWeight'] = ndf.apply(lambda x : RW.at[x['IG_HYNR'], x['Bucket']+x['SubBucket']], axis=1)
 
@@ -1135,7 +1132,7 @@ class CS_EQ_SA_SBM_Calc(SA_SBM_Calc):
         elif riskType == 'Vega':
             RWBucket = self.getConfigItem('VegaBucketRiskWeight')
 
-        df.loc[:, 'RiskWeight'] = df['Bucket'].apply(lambda bucket : RWBucket.at[bucket])
+        df.loc[:, 'RiskWeight'] = df.apply(lambda r : RWBucket.at[r['Bucket']+r['SubBucket']], axis=1)
         return df
 
     def getRho(self, riskClass, bucket, df):

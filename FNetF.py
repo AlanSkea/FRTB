@@ -60,6 +60,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'CreditName'                    : 'str',
         'CurveType'                     : 'str',
         'Rating'                        : 'str',
@@ -71,6 +72,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'CreditName'                    : 'str',
         'OptionMaturity'                : 'str',
         'Sensitivity'                   : 'float64',
@@ -80,6 +82,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'CreditName'                    : 'str',
         'CVR+'                          : 'float64',
         'CVR-'                          : 'float64',
@@ -89,6 +92,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Underlier'                     : 'str',
         'CurveType'                     : 'str',
         'Tenor'                         : 'str',
@@ -99,6 +103,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Underlier'                     : 'str',
         'OptionMaturity'                : 'str',
         'Sensitivity'                   : 'float64',
@@ -108,6 +113,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Underlier'                     : 'str',
         'CVR+'                          : 'float64',
         'CVR-'                          : 'float64',
@@ -117,6 +123,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Underlier'                     : 'str',
         'CurveType'                     : 'str',
         'Tenor'                         : 'str',
@@ -127,6 +134,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Underlier'                     : 'str',
         'OptionMaturity'                : 'str',
         'Sensitivity'                   : 'float64',
@@ -136,6 +144,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Underlier'                     : 'str',
         'CVR+'                          : 'float64',
         'CVR-'                          : 'float64',
@@ -145,6 +154,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'EquityName'                    : 'str',
         'SpotRepo'                      : 'str',
         'Sensitivity'                   : 'float64',
@@ -154,6 +164,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'EquityName'                    : 'str',
         'OptionMaturity'                : 'str',
         'Sensitivity'                   : 'float64',
@@ -163,6 +174,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'EquityName'                    : 'str',
         'CVR+'                          : 'float64',
         'CVR-'                          : 'float64',
@@ -172,6 +184,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'CommodityName'                 : 'str',
         'DeliveryLocation'              : 'str',
         'Tenor'                         : 'str',
@@ -182,6 +195,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'CommodityName'                 : 'str',
         'OptionMaturity'                : 'str',
         'Sensitivity'                   : 'float64',
@@ -191,6 +205,7 @@ FNetFieldType = {
         'IRT'                           : 'bool',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'CommodityName'                 : 'str',
         'CVR+'                          : 'float64',
         'CVR-'                          : 'float64',
@@ -308,6 +323,7 @@ FNetFieldType = {
         'RiskGroup'                     : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Sensitivity'                   : 'float64',
         'HedgeSensitivity'              : 'float64',
     },
@@ -315,6 +331,7 @@ FNetFieldType = {
         'RiskGroup'                     : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Sensitivity'                   : 'float64',
         'HedgeSensitivity'              : 'float64',
     },
@@ -322,6 +339,7 @@ FNetFieldType = {
         'RiskGroup'                     : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Sensitivity'                   : 'float64',
         'HedgeSensitivity'              : 'float64',
     },
@@ -329,6 +347,7 @@ FNetFieldType = {
         'RiskGroup'                     : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Sensitivity'                   : 'float64',
         'HedgeSensitivity'              : 'float64',
     },
@@ -336,6 +355,7 @@ FNetFieldType = {
         'RiskGroup'                     : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Sensitivity'                   : 'float64',
         'HedgeSensitivity'              : 'float64',
     },
@@ -343,6 +363,7 @@ FNetFieldType = {
         'RiskGroup'                     : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Sensitivity'                   : 'float64',
         'HedgeSensitivity'              : 'float64',
     },
@@ -375,6 +396,7 @@ FNetFieldType = {
 class FNetF():
     def __init__(self):
         self.FNF_Params_Tab = "Parameters"
+        self.FNF_Copyright_Tab = "Copyright"
         self.FNF_Test_Tabs = [ "ObligorTests", "FactorTests", "BucketTests", "CapitalTests" ]
         self._params = {'FNetFormatVersion' : '1.0'}
         self._sensis = {}
@@ -428,7 +450,7 @@ class FNetF():
                     df = df.astype(typemap)
                     self._sensis[sheet] = df
                     self._riskGroups |= set(df['RiskGroup'].unique())
-                else:
+                elif sheet != self.FNF_Copyright_Tab:
                     print(f"Unknown sheet '{sheet}' in file '{filepath}'")
 
         self._filename = filepath
@@ -453,21 +475,23 @@ class FNetF():
                     for s in cRow['Sensitivity IDs'].replace(', ', ',').split(','):
                         if s.startswith('ALL '):
                             getAll = True    # we treat all the remaining Sensitivity IDs as prefixes and match against them
-                            sensiSubList = sensis[[ss.startswith(s[4:]) and (
-                                                    s[4:] == ss                 # exact match
-                                                    or
-                                                    ss[len(s)-4:].isdigit()     # all the characters after the matching prefix are digits
-                                                                                # so "ALL MS_EQV_a" doesn't match "MS_EQV_aa1"
-                                                ) for ss in sensis['Sensitivity ID']]
+                            sensiSubList = sensis[[ss.startswith(s[4:]) # and (
+                                                #     s[4:] == ss                 # exact match
+                                                #     or
+                                                #     ss[len(s)-4:].isdigit()     # all the characters after the matching prefix are digits
+                                                #                                 # so "ALL MS_EQV_a" doesn't match "MS_EQV_aa1"
+                                                # ) 
+                                                for ss in sensis['Sensitivity ID']]
                                             ]['Sensitivity ID'].unique()
                         elif getAll:
                             # same as the above case but we don't have to look past the "ALL " prefix
-                            sensiSubList = sensis[[ss.startswith(s) and (
-                                                    s == ss                     # exact match
-                                                    or
-                                                    ss[len(s):].isdigit()       # all the characters after the matching prefix are digits
-                                                                                # so "ALL MS_EQV_a" doesn't match "MS_EQV_aa1"
-                                                ) for ss in sensis['Sensitivity ID']]
+                            sensiSubList = sensis[[ss.startswith(s) # and (
+                                                #     s == ss                     # exact match
+                                                #     or
+                                                #     ss[len(s):].isdigit()       # all the characters after the matching prefix are digits
+                                                #                                 # so "ALL MS_EQV_a" doesn't match "MS_EQV_aa1"
+                                                # )
+                                                for ss in sensis['Sensitivity ID']]
                                             ]['Sensitivity ID'].unique()
                         else:
                             if s in sensis.index:
