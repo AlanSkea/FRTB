@@ -1,6 +1,6 @@
 Vision and Overview
 ===
-Our vision is to create a network of Market Risk and CVA practitioners around a free, open-source implementation of the Standardised Approach Basel III Market Risk Capital rules (aka FRTB).  Our calculators also encompass the Basel III CVA Standardised Approach and the Basel III CVA Basic Approach.  The calculators are flexible and can be configured for a variety of regional variations to the rules.
+Our vision is to create a network of Market Risk and CVA practitioners around a free, open-source implementation of the Basel III Standardised Approach Market Risk Capital rules (aka FRTB).  Our calculators also encompass the Basel III CVA Standardised Approach and the Basel III CVA Basic Approach.  The calculators are flexible and can be configured for a variety of regional variations to the rules.
 
 Based on these core calculators we have also developed some tools for completing regulatory reports, for drill-down and analysis of and explaining the capital charges and a rigorous and comprehensive testing framework.  These are available separately - see below or [contact us](mailto:info@frtb.net).
 
@@ -38,7 +38,7 @@ Examples
 Some examples of use are in the Examples folder.
 * **UnitTests_BCBS_FNetF_v0.3.xlsx** is a spreadsheet in FNetF format containing input sensitivities and resulting capital for a set of portfolios constructed from those sensitivities.
 * **RunUnitTests.py** uses the core calculators to compute the capital for each of the test portfolios and compares the result to the benchmark result given in the input spreadsheet.  Given that the input spreadsheet was generated using the same calculators, the results should all match.  This is useful as a regression test when making changes to the core calculators.
-* **approach-for-credit-valuation-adjustment-risk-sacva-data-template.xlsx** : this is a spreadsheet downloaded form the PRA website that needs to be completed and submitted as part if any application to use the CVA Standardised Approach.
+* **approach-for-credit-valuation-adjustment-risk-sacva-data-template.xlsx** : this is a spreadsheet downloaded from the PRA website that needs to be completed and submitted as part of any application to use the CVA Standardised Approach.
 * **Convert_PRA_CVA_Template.py** : this converts the PRA spreadsheet above into an FNetF format file that can be used by the frtb.net core calculators to compute the requested results.
 * **RunPRA_CVA.py** uses the generated FNetF file and the core calculators to compute the results for the data template.
 
