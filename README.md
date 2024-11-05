@@ -22,9 +22,9 @@ The core calculators take as inputs the sensitivities produced by an institution
 There is also code to convert ISDA CRIF format files to FNetF files and vice versa.
 
 There are four calculator modules:
-* **SA_SBM_Calc.py** : Implements the Market Risk SBM method and the CVA Standardised approach method.  All risk classes are included.
-* **SA_DRC_Calc.py** : Implements calculators for the Market Risk Default Risk Charge (for non-securitisations, securitisations not in the correlation trading portfolio and securitisations that are in the correlation trading portfolio)
-* **SA_RRAO_Clac.py** : Implements the calculator for the Residual Risk Add-On.
+* **SA_SBM_Calc.py** : Implements the Market Risk SBM method and the CVA Standardised Approach method.  All risk classes are included.
+* **SA_DRC_Calc.py** : Implements calculators for the Market Risk Default Risk Charge (for non-securitisations, securitisations not in the correlation trading portfolio, and securitisations that are in the correlation trading portfolio).
+* **SA_RRAO_Calc.py** : Implements the calculator for the Residual Risk Add-On.
 * **BA_CVA_Calc.py** : Implements the CVA Basic Approach calculators.  Either the Reduced or the Full calculation can be used.
 
 Configs
