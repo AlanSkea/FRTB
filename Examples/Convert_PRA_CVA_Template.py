@@ -152,6 +152,8 @@ for sheet in praf.sheet_names:
     if FNetFRiskClass == 'CS_CC':
         df.loc[:, 'IG_HYNR'] = df['IG_HYNR'].str.replace('HY', 'HY_NR')
     else:
+        df.loc[:, 'SubBucket'] = ''
+
         if FNetFRiskClass == 'CS_IR':
             df.loc[:, 'CurveType'] = df['CurveType'].str.replace('Inflation', 'INFL')
 
