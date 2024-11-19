@@ -87,7 +87,7 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
 
     def netByObligor(self, df):
         fields = self._factorFields
-        return df.groupby(['RiskGroup', 'IRT', 'RiskClass', 'Bucket'] + fields).apply(self._netByObligor).reset_index()        
+        return df.groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + fields).apply(self._netByObligor).reset_index()        
 
 
     def prepareData(self, riskClass, df):
@@ -108,7 +108,7 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
             factorFields.append('RiskWeight')
 
         valueFields = ['NetLong', 'NetShort', 'WeightedNetLong', 'WeightedNetShort']
-        ndf = df[['RiskGroup', 'IRT', 'RiskClass', 'Bucket'] + factorFields + valueFields].groupby(['RiskGroup', 'IRT', 'RiskClass', 'Bucket'] + factorFields).sum().reset_index()
+        ndf = df[['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields + valueFields].groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields).sum().reset_index()
         return ndf
 
 
