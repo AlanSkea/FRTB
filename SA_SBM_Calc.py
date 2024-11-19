@@ -282,17 +282,15 @@ class SA_SBM_Calc(FRTBCalculator.FRTBCalculator):
         # bucket risk factors we need.  So here we aggregate all the rows for the same risk
         # factor into a single row.
         #
+        keyFields = ['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket']
         factorFields = self.getFactorNettingFields(riskClass)
 
         if self._CVA:
-            keyFields = ['RiskGroup', 'RiskClass', 'Bucket']
             valueFields = ['Sensitivity', 'WeightedSensitivity', 'HedgeSensitivity', 'WeightedHedgeSensitivity']
             factorFields.append('RiskWeight')
         elif riskClass[5:] == 'Curvature':
-            keyFields = ['RiskGroup', 'IRT', 'RiskClass', 'Bucket']
             valueFields = ['CVR+', 'CVR-']
         else:
-            keyFields = ['RiskGroup', 'IRT', 'RiskClass', 'Bucket']
             valueFields = ['Sensitivity', 'WeightedSensitivity']
             factorFields.append('RiskWeight')
 

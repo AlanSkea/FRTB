@@ -145,6 +145,7 @@ for sheet in praf.sheet_names:
         df['Tenor'] = df['Tenor'].map(TenorMap)
 
     df.loc[:, 'RiskGroup'] = 'PRA_CVA_UnitTests'
+    df.loc[:, 'RiskSubGroup'] = 'PRA_CVA_UnitTests'
     df.loc[:, 'RiskClass'] = FNetFRiskClass + df['RiskType'].str.capitalize()
     df.loc[:, 'Sensitivity ID'] = df.apply(lambda r : f"{ComboPrefix}_{r['RiskType'][0]}_{int(r['Sensitivity ID']):02d}", axis=1)
     df.loc[:, 'Bucket'] = df['Bucket'].str.removeprefix('Bucket_')

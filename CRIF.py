@@ -712,8 +712,8 @@ class CRIF(FNetF.FNetF):
             ndf = up.merge(down, on=cvrCols)
 
         ndf.loc[:, 'RiskGroup'] = 'UnitTests'
-        ndf.loc[:, 'IRT'] = False
-        ndf.set_index(['RiskGroup', 'IRT', 'RiskClass', 'Bucket'], inplace=True)
+        ndf.loc[:, 'RiskSubGroup'] = 'Main'
+        ndf.set_index(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'], inplace=True)
         return ndf
 
 

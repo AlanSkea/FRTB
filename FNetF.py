@@ -26,10 +26,12 @@ import os
 
 import FRTBUtils as FNU
 
+FNetFormatVersion = '2.0'
+
 FNetFieldType = {
     'MS_IRDelta' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'CurveType'                     : 'str',
@@ -39,7 +41,7 @@ FNetFieldType = {
     },
     'MS_IRVega' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'CurveType'                     : 'str',
@@ -49,7 +51,7 @@ FNetFieldType = {
     },
     'MS_IRCurvature' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'CVR+'                          : 'float64',
@@ -57,7 +59,7 @@ FNetFieldType = {
     },
     'MS_CRDelta' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -69,7 +71,7 @@ FNetFieldType = {
     },
     'MS_CRVega': {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -79,7 +81,7 @@ FNetFieldType = {
     },
     'MS_CRCurvature' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -89,7 +91,7 @@ FNetFieldType = {
     },
     'MS_CCDelta' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -100,7 +102,7 @@ FNetFieldType = {
     },
     'MS_CCVega' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -110,7 +112,7 @@ FNetFieldType = {
     },
     'MS_CCCurvature' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -120,7 +122,7 @@ FNetFieldType = {
     },
     'MS_CSDelta' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -131,7 +133,7 @@ FNetFieldType = {
     },
     'MS_CSVega' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -141,7 +143,7 @@ FNetFieldType = {
     },
     'MS_CSCurvature' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -151,7 +153,7 @@ FNetFieldType = {
     },
     'MS_EQDelta' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -161,7 +163,7 @@ FNetFieldType = {
     },
     'MS_EQVega' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -171,7 +173,7 @@ FNetFieldType = {
     },
     'MS_EQCurvature' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -181,7 +183,7 @@ FNetFieldType = {
     },
     'MS_CMDelta' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -192,7 +194,7 @@ FNetFieldType = {
     },
     'MS_CMVega' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -202,7 +204,7 @@ FNetFieldType = {
     },
     'MS_CMCurvature' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -212,14 +214,14 @@ FNetFieldType = {
     },
     'MS_FXDelta' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'Sensitivity'                   : 'float64',
     },
     'MS_FXVega' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'OptionMaturity'                : 'str',
@@ -227,7 +229,7 @@ FNetFieldType = {
     },
     'MS_FXCurvature' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'CVR+'                          : 'float64',
@@ -235,7 +237,7 @@ FNetFieldType = {
     },
     'MD_CR_DRC' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'Name'                          : 'str',
@@ -246,7 +248,7 @@ FNetFieldType = {
     },
     'MD_CC_DRC' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'Series'                        : 'str',
@@ -258,7 +260,7 @@ FNetFieldType = {
     },
     'MD_CS_DRC' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'Issuer/Tranche'                : 'str',
@@ -267,7 +269,7 @@ FNetFieldType = {
     },
     'MR_RRAO' : {
         'RiskGroup'                     : 'str',
-        'IRT'                           : 'bool',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'NotionalAmount'                : 'float64',
@@ -278,6 +280,7 @@ FNetFieldType = {
     #
     'CS_IRDelta' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'CurveType'                     : 'str',
@@ -287,6 +290,7 @@ FNetFieldType = {
     },
     'CS_IRVega' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'CurveType'                     : 'str',
@@ -295,6 +299,7 @@ FNetFieldType = {
     },
     'CS_FXDelta' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'Sensitivity'                   : 'float64',
@@ -302,6 +307,7 @@ FNetFieldType = {
     },
     'CS_FXVega' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'Sensitivity'                   : 'float64',
@@ -309,6 +315,7 @@ FNetFieldType = {
     },
     'CS_CCDelta' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -321,6 +328,7 @@ FNetFieldType = {
     },
     'CS_CRDelta' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -329,6 +337,7 @@ FNetFieldType = {
     },
     'CS_CRVega' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -337,6 +346,7 @@ FNetFieldType = {
     },
     'CS_EQDelta' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -345,6 +355,7 @@ FNetFieldType = {
     },
     'CS_EQVega' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -353,6 +364,7 @@ FNetFieldType = {
     },
     'CS_CMDelta' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -361,6 +373,7 @@ FNetFieldType = {
     },
     'CS_CMVega' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
@@ -369,6 +382,7 @@ FNetFieldType = {
     },
     'CB_REDUCED' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Sector'                        : 'str',          # Sector and Region aren't really necessary if we have CounterPartyGroup
         'Region'                        : 'str',          #    - we can assume that the mismatched ParentNames in a CounterpartyGroup are sector/region matches
@@ -380,6 +394,7 @@ FNetFieldType = {
     },
     'CB_FULL' : {
         'RiskGroup'                     : 'str',
+        'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Sector'                        : 'str',          # Sector and Region aren't really necessary if we have CounterPartyGroup
         'Region'                        : 'str',          #    - we can assume that the mismatched ParentNames in a CounterpartyGroup are sector/region matches
@@ -398,7 +413,7 @@ class FNetF():
         self.FNF_Params_Tab = "Parameters"
         self.FNF_Copyright_Tab = "Copyright"
         self.FNF_Test_Tabs = [ "ObligorTests", "FactorTests", "BucketTests", "CapitalTests" ]
-        self._params = {'FNetFormatVersion' : '1.0'}
+        self._params = {'FNetFormatVersion' : FNetFormatVersion}
         self._sensis = {}
         self._riskGroups = set()
         self._tests = {}
@@ -421,9 +436,15 @@ class FNetF():
                 if sheet == self.FNF_Params_Tab:
                     df = pd.read_excel(fnf, sheet_name=self.FNF_Params_Tab, header=None)
                     self._params =FNU.extractKeyedData(self.FNF_Params_Tab, df, {})  # empty dataTypes dictionary as all are assumed to be 'str'ings
+
+                    if self._params['FNetFormatVersion'] != FNetFormatVersion:
+                        print("Incomopatible FNetFormatVersion: code version = {FNetFormatVersion}, file version = {self._params['FNetFormatVersion']}")
+                        return None
                 elif sheet in self.FNF_Test_Tabs:
                     unitTests = pd.read_excel(fnf, sheet_name=sheet, dtype=str)
                     colNames = [x for x in unitTests.columns if x not in ['Test ID',
+                                                                          'RiskGroup',
+                                                                          'RiskSubGroup',
                                                                           'RiskClass',
                                                                           'Description',
                                                                           'Sensitivity IDs']]
