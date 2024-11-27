@@ -74,6 +74,10 @@ class FRTBCalculator(object):
         return df
 
 
+    def getFactorNettingFields(self, riskClass=None):
+        return []
+
+
     @abc.abstractmethod
     def calcRiskClassCapital(self, df):
         # This pure virtual method is the primary entry point and computes capital for a

@@ -81,12 +81,12 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
         return pd.Series({'NetLong' : netlong, 'NetShort' : netshort})
 
 
-    def getObligorNettingFields(self):
-        return self._factorFields
+    def getFactorNettingFields(self, riskClass=None):
+        return self._factorFields.copy()
 
 
     def netByObligor(self, df):
-        fields = self._factorFields
+        fields = self.getFactorNettingFields()
         return df.groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + fields).apply(self._netByObligor).reset_index()        
 
 
@@ -101,7 +101,7 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
         # bucket risk factors we need.  So here we aggregate all the rows for the same risk
         # factor into a single row.
         #
-        factorFields = self._factorFields.copy()
+        factorFields = self.getFactorNettingFields()
 
         if not 'RiskWeight' in factorFields:
             # Securitisations already have a RiskWeight in the data and as part of the factorFields
