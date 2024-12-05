@@ -467,6 +467,7 @@ class MS_IR_SA_SBM_Calc(SA_SBM_Calc):
                         # one is INFL and the other is IR
                         corr = inflRho * optionTenorRho.loc[r[1], c[1]]
 
+                    corr = min(corr, 1.0)
                 rho[i, j] = rho[j, i] = corr
 
         return pd.DataFrame(rho, index=df.index, columns=df.index)
@@ -551,7 +552,7 @@ class MS_CR_SA_SBM_Calc(SA_SBM_Calc):
                         # Different tenors
                         corr *= tenorRho
                 elif riskClass[5:] == 'Vega':
-                    corr *= min(self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1.0)
+                    corr = min(corr * self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1.0)
 
                 rho[i, j] = rho[j, i] = corr
 
@@ -611,7 +612,7 @@ class MS_CC_SA_SBM_Calc(SA_SBM_Calc):
                         # Different tenors
                         corr *= tenorRho
                 elif riskClass[5:] == 'Vega':
-                    corr *= min(self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1.0)
+                    corr = min(corr * self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1.0)
 
                 rho[i, j] = rho[j, i] = corr
 
@@ -672,7 +673,7 @@ class MS_CS_SA_SBM_Calc(SA_SBM_Calc):
                         # Different tenors
                         corr *= tenorRho
                 elif riskClass[5:] == 'Vega':
-                    corr *= min(self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1.0)
+                    corr = min(corr * self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1.0)
 
                 rho[i, j] = rho[j, i] = corr
 
@@ -812,7 +813,6 @@ class MS_EQ_SA_SBM_Calc(SA_SBM_Calc):
         factors = df[self._rhoFactorFields[riskClass[5:]]]
         nameRho = self.getConfigItem('DeltaNameBucketRho').at[bucket]
         spotRepoRho = self.getConfigItem('DeltaSpotRepoRho')
-        tenorRho = self.getConfigItem('VegaOptionTenorRho')
 
         for i, r in enumerate(factors.itertuples(index=False)):
             for j, c in enumerate(factors.itertuples(index=False)):
@@ -832,7 +832,7 @@ class MS_EQ_SA_SBM_Calc(SA_SBM_Calc):
                 elif riskClass[5:] == 'Vega':
                     if r[1] != c[1]:
                         # Different option maturities
-                        corr *= tenorRho.at[r[1], c[1]]
+                        corr = min(corr * self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1.0)
 
                 rho[i, j] = rho[j, i] = corr
 
@@ -870,7 +870,6 @@ class MS_CM_SA_SBM_Calc(SA_SBM_Calc):
         commodityRho = self.getConfigItem('DeltaCommodityRho').at[bucket]
         deltaTenorRho = self.getConfigItem('DeltaTenorRho')
         basisRho = self.getConfigItem('DeltaBasisRho')
-        vegaTenorRho = self.getConfigItem('VegaOptionTenorRho')
 
         for i, r in enumerate(factors.itertuples(index=False)):
             for j, c in enumerate(factors.itertuples(index=False)):
@@ -892,7 +891,7 @@ class MS_CM_SA_SBM_Calc(SA_SBM_Calc):
                         # Different delivery locations
                         corr *= basisRho
                 elif riskClass[5:] == 'Vega':
-                    corr *= min(vegaTenorRho.at[r[1], c[1]], 1)
+                    corr = min(corr * self.getConfigItem('VegaOptionTenorRho').at[r[1], c[1]], 1)
 
                 rho[i, j] = rho[j, i] = corr
 
