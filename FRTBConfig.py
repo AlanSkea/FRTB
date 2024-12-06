@@ -34,11 +34,12 @@ import FRTBUtils as FNU
 
 
 class FRTBConfig(object):
-    _Regulators = [
-        'BCBS',
-        'UK-PRA',
-        'EU-EBA'
-    ]
+    # _Regulators = [
+    #     'BCBS',
+    #     'UK-PRA',
+    #     'EU-EBA',
+    #     'SG-MAS'`
+    # ]
 
     _configFile = 'FRTBConfig_{}.xlsx'
 
@@ -119,7 +120,7 @@ class FRTBConfig(object):
                 'rowHdrKeys' : ['CQRiskWeight']
             },
             'MD_CS' : {
-                'listKeys' : ['Bucket', 'OtherBucketRegion', 'OtherBucketSector'],
+                'arrayKeys' : ['Bucket'],
                 'colHdrKeys' : ['Bucket']
             },
             'MR_RR' : {
