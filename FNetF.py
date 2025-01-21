@@ -438,7 +438,7 @@ class FNetF():
                     self._params =FNU.extractKeyedData(self.FNF_Params_Tab, df, {})  # empty dataTypes dictionary as all are assumed to be 'str'ings
 
                     if self._params['FNetFormatVersion'] != FNetFormatVersion:
-                        print("Incomopatible FNetFormatVersion: code version = {FNetFormatVersion}, file version = {self._params['FNetFormatVersion']}")
+                        print(f"Incomopatible FNetFormatVersion: code version = {FNetFormatVersion}, file version = {self._params['FNetFormatVersion']}")
                         return None
                 elif sheet in self.FNF_Test_Tabs:
                     unitTests = pd.read_excel(fnf, sheet_name=sheet, dtype=str)
@@ -470,7 +470,7 @@ class FNetF():
 
                     df = df.astype(typemap)
                     self._sensis[sheet] = df
-                    self._riskGroups |= set(df['RiskGroup'].unique())
+                    self._riskGroups |= set([(r.at['RiskGroup'], r.at['RiskSubGroup']) for _,r in df[['RiskGroup','RiskSubGroup']].drop_duplicates().iterrows()])
                 elif sheet != self.FNF_Copyright_Tab:
                     print(f"Unknown sheet '{sheet}' in file '{filepath}'")
 
