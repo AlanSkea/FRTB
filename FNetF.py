@@ -45,6 +45,7 @@ FNetFieldType = {
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'CurveType'                     : 'str',
+        'Curve'                         : 'str',            # needed for EU reporting
         'OptionMaturity'                : 'str',
         'UnderlyingResidualMaturity'    : 'str',
         'Sensitivity'                   : 'float64',
@@ -76,6 +77,7 @@ FNetFieldType = {
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
         'CreditName'                    : 'str',
+        'Rating'                        : 'str',            # needed for EU reporting
         'OptionMaturity'                : 'str',
         'Sensitivity'                   : 'float64',
     },
@@ -86,6 +88,7 @@ FNetFieldType = {
         'Bucket'                        : 'str',
         'SubBucket'                     : 'str',
         'CreditName'                    : 'str',
+        'Rating'                        : 'str',            # needed for EU reporting
         'CVR+'                          : 'float64',
         'CVR-'                          : 'float64',
     },
