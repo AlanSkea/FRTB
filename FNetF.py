@@ -26,7 +26,7 @@ import os
 
 import FRTBUtils as FNU
 
-FNetFormatVersion = '2.0'
+FNetFormatVersion = '3.0'
 
 FNetFieldType = {
     'MS_IRDelta' : {
@@ -243,6 +243,7 @@ FNetFieldType = {
         'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'Name'                          : 'str',
         'Seniority'                     : 'str',
         'Rating'                        : 'str',
@@ -253,12 +254,13 @@ FNetFieldType = {
         'RiskGroup'                     : 'str',
         'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
-        'Bucket'                        : 'str',
+        'Bucket'                        : 'str',        # This is the index name or an identifier for the correlation instrument
+        'ExposureType'                  : 'str',        # CDSIndex, CDSIndexTranche, SingleNameHedge, Bespoke.
         'Series'                        : 'str',
-        'TrancheNames'                  : 'str',
-        'Seniority'                     : 'str',
-        'Rating'                        : 'str',
+        'Tranche'                       : 'str',        # May be a tranche name, maybe a number for the obligpr in the index
         'MaturityDate'                  : 'str',
+        'Rating'                        : 'object',     # Sometime this is None and needs to be kept as NoneType.  Otherwise it's a 'str' and 'object' is OK for that
+        'RiskWeight'                    : 'float64',
         'JTD'                           : 'float64',
     },
     'MD_CS_DRC' : {
@@ -267,6 +269,7 @@ FNetFieldType = {
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
         'Issuer/Tranche'                : 'str',
+        'MaturityDate'                  : 'str',
         'RiskWeight'                    : 'float64',
         'JTD'                           : 'float64',
     },
@@ -275,6 +278,7 @@ FNetFieldType = {
         'RiskSubGroup'                  : 'str',
         'RiskClass'                     : 'str',
         'Bucket'                        : 'str',
+        'SubBucket'                     : 'str',
         'NotionalAmount'                : 'float64',
     },
 
@@ -467,7 +471,7 @@ class FNetF():
                         elif dtype == 'bool':
                             df.loc[:, col] = df[col].apply(lambda x : False if x == 'False' else True)
                             typemap[col] = dtype
-                        else:
+                        elif dtype != 'object':
                             df.loc[:, col] = df[col].fillna(FNU._fillnaMap[dtype])
                             typemap[col] = dtype
 
