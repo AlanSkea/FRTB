@@ -75,10 +75,18 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
     # Not much to do for securitisations - Non-Securitisations override this method
     #
     def _netByObligor(self, df):
+        grossLong = df[df['JTD'] >= 0]['JTD'].sum()
+        grossShort = df[df['JTD'] < 0]['JTD'].sum()
         net = df['ScaledJTD'].sum()
-        netlong = net if net > 0.0 else 0.0
-        netshort = net if net < 0.0 else 0.0
-        return pd.Series({'NetLong' : netlong, 'NetShort' : netshort})
+        netLong = net if net > 0.0 else 0.0
+        netShort = net if net < 0.0 else 0.0
+        return pd.Series({
+                    'GrossJTDLong'     : grossLong,
+                    'GrossJTDShort'    : grossShort,
+                    'NetJTDLong'       : netLong,
+                    'NetJTDShort'      : netShort
+                }
+            )
 
 
     def getFactorNettingFields(self, riskClass=None):
@@ -87,7 +95,21 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
 
     def netByObligor(self, df):
         fields = self.getFactorNettingFields()
-        return df.groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + fields).apply(self._netByObligor).reset_index()        
+
+        if 'RiskWeight' in df.columns:
+            # Securitisations already have a RiskWeight in the data and this is needed
+            fields.append('RiskWeight')
+
+        res = pd.DataFrame()
+        kk = ['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + fields
+
+        for k, v in df.groupby(kk, dropna=False):
+            r = self._netByObligor(v)
+            r = pd.concat([r, pd.Series(k, kk)])
+            res = pd.concat([res, r.to_frame().T], axis=0)
+
+        # res = df.groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + fields, dropna=False).apply(self._netByObligor).reset_index()        
+        return res
 
 
     def prepareData(self, riskClass, df):
@@ -102,13 +124,8 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
         # factor into a single row.
         #
         factorFields = self.getFactorNettingFields()
-
-        if not 'RiskWeight' in factorFields:
-            # Securitisations already have a RiskWeight in the data and as part of the factorFields
-            factorFields.append('RiskWeight')
-
-        valueFields = ['NetLong', 'NetShort', 'WeightedNetLong', 'WeightedNetShort']
-        ndf = df[['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields + valueFields].groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields).sum().reset_index()
+        valueFields = ['GrossJTDLong', 'GrossJTDShort', 'NetJTDLong', 'NetJTDShort', 'WeightedNetJTDLong', 'WeightedNetJTDShort']
+        ndf = df[['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields + valueFields].groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields, dropna=False).sum().reset_index()
         return ndf
 
 
@@ -117,28 +134,32 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
     # using that.
     #
     # TODO : create a method to compute the accurate HBR and Capital for Securitisations (CTP)
-    # for intermediate results delivery.  Then maybe the common aggreageDRC method can be used.
+    # for intermediate results delivery.  Then maybe the common aggregateDRC method can be used.
     #
     def calcBucketDRC(self, riskClass, bucket, df):
         # Collect net long and net short sensitivities
-        netLong = df['NetLong'].sum()
-        netShort = df['NetShort'].sum()
-        weightedNetLong = df['WeightedNetLong'].sum()
-        weightedNetShort = df['WeightedNetShort'].sum()
+        grossLong = df['GrossJTDLong'].sum()
+        grossShort = df['GrossJTDShort'].sum()
+        netLong = df['NetJTDLong'].sum()
+        netShort = df['NetJTDShort'].sum()
+        weightedNetLong = df['WeightedNetJTDLong'].sum()
+        weightedNetShort = df['WeightedNetJTDShort'].sum()
 
         # compute the hedge benefit ratio and the capital
         hedgeBenefitRatio = netLong / (netLong - netShort)
 
         bucketCapital = {
-                'RiskClass'         : riskClass,
-                'Bucket'            : bucket,
-                'Correlation'       : 'Medium',
-                'NetLong'           : netLong,
-                'NetShort'          : netShort,
-                'WeightedNetLong'   : weightedNetLong,
-                'WeightedNetShort'  : weightedNetShort,
-                'HedgeBenefitRatio' : hedgeBenefitRatio,
-                'Capital'           : max(weightedNetLong + hedgeBenefitRatio * weightedNetShort, 0)    # EBA varies from this
+                'RiskClass'             : riskClass,
+                'Bucket'                : bucket,
+                'Correlation'           : 'Medium',
+                'GrossJTDLong'          : grossLong,
+                'GrossJTDShort'         : grossShort,
+                'NetJTDLong'            : netLong,
+                'NetJTDShort'           : netShort,
+                'WeightedNetJTDLong'    : weightedNetLong,
+                'WeightedNetJTDShort'   : weightedNetShort,
+                'HedgeBenefitRatio'     : hedgeBenefitRatio,
+                'Capital'               : max(weightedNetLong + hedgeBenefitRatio * weightedNetShort, 0)    # EBA varies from this
             }
 
         return [bucketCapital]
@@ -173,24 +194,26 @@ class MD_CR_SA_DRC(SA_DRC_Calc):
     def applyRiskWeights(self, riskClass, df):
         riskWeight = self.getConfigItem('CQRiskWeight')
         df.loc[:, 'RiskWeight'] = df['Rating'].apply(lambda rating : riskWeight.at[rating])
-        df.loc[:, 'WeightedNetLong'] = df['NetLong'] * df['RiskWeight']
-        df.loc[:, 'WeightedNetShort'] = df['NetShort'] * df['RiskWeight']
+        df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
+        df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
         return df
 
     # Called with data for just one Obligor, this nets at a seniority level and then allows
     # more senior obligations to offset more junior obligations.
     #
     def _netByObligor(self, df):
+        grossLong = df[df['JTD'] >= 0]['JTD'].sum()
+        grossShort = df[df['JTD'] < 0]['JTD'].sum()
         netLongEQ = df.loc[(df['ScaledJTD'] > 0) & (df['Seniority'] == 'EQUITY'), 'ScaledJTD'].sum()
         netShortEQ = df.loc[(df['ScaledJTD'] < 0) & (df['Seniority'] == 'EQUITY'), 'ScaledJTD'].sum()
-        NetLongSub = df.loc[(df['ScaledJTD'] > 0) & (df['Seniority'] == 'NON-SENIOR'), 'ScaledJTD'].sum()
-        NetShortSub = df.loc[(df['ScaledJTD'] < 0) & (df['Seniority'] == 'NON-SENIOR'), 'ScaledJTD'].sum()
+        netLongSub = df.loc[(df['ScaledJTD'] > 0) & (df['Seniority'] == 'NON-SENIOR'), 'ScaledJTD'].sum()
+        netShortSub = df.loc[(df['ScaledJTD'] < 0) & (df['Seniority'] == 'NON-SENIOR'), 'ScaledJTD'].sum()
         netLongSenior = df.loc[(df['ScaledJTD'] > 0) & (df['Seniority'] == 'SENIOR'), 'ScaledJTD'].sum()
         netShortSenior = df.loc[(df['ScaledJTD'] < 0) & (df['Seniority'] == 'SENIOR'), 'ScaledJTD'].sum()
         netLongCovered = df.loc[(df['ScaledJTD'] > 0) & (df['Seniority'] == 'COVERED'), 'ScaledJTD'].sum()
         netShortCovered = df.loc[(df['ScaledJTD'] < 0) & (df['Seniority'] == 'COVERED'), 'ScaledJTD'].sum()
         netLong = max(netLongEQ + netShortEQ +
-                        max(NetLongSub + NetShortSub +
+                        max(netLongSub + netShortSub +
                             max(netLongSenior + netShortSenior +
                                 max(netLongCovered + netShortCovered, 0),
                                 0),
@@ -198,12 +221,18 @@ class MD_CR_SA_DRC(SA_DRC_Calc):
                         0)
         netShort = min(netLongCovered + netShortCovered +
                         min(netLongSenior + netShortSenior +
-                            min(NetLongSub + NetShortSub +
+                            min(netLongSub + netShortSub +
                                 min(netLongEQ + netShortEQ, 0),
                                 0),
                             0),
                         0)
-        return pd.Series({'NetLong' : netLong, 'NetShort' : netShort})
+        return pd.Series({
+                    'GrossJTDLong'     : grossLong,
+                    'GrossJTDShort'    : grossShort,
+                    'NetJTDLong'       : netLong,
+                    'NetJTDShort'      : netShort
+                }
+            )
 
 
 @FRTBCalculator.registerClass
@@ -211,11 +240,11 @@ class MD_CS_SA_DRC(SA_DRC_Calc):
     #
     # Securitisations, non Correlation-Trading-Portfolio
     #
-    _factorFields = ['Issuer/Tranche', 'RiskWeight']
+    _factorFields = ['Issuer/Tranche']
 
     def applyRiskWeights(self, riskClass, df):
-        df.loc[:, 'WeightedNetLong'] = df['NetLong'] * df['RiskWeight']
-        df.loc[:, 'WeightedNetShort'] = df['NetShort'] * df['RiskWeight']
+        df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
+        df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
         return df
 
 
@@ -224,21 +253,22 @@ class MD_CC_SA_DRC(SA_DRC_Calc):
     #
     # Securitisations, Correlation-Trading-Portfolio
     #
-    _factorFields = ['TrancheNames', 'Rating']
+    _factorFields = ['Series', 'Tranche', 'Rating']
 
     def applyRiskWeights(self, riskClass, df):
         riskWeight = self.getConfigItem('CQRiskWeight')
-        df.loc[:, 'RiskWeight'] = df['Rating'].apply(lambda rating : riskWeight.at[rating])
-        df.loc[:, 'WeightedNetLong'] = df['NetLong'] * df['RiskWeight']
-        df.loc[:, 'WeightedNetShort'] = df['NetShort'] * df['RiskWeight']
+        df.loc[~df['Rating'].isnull(), 'RiskWeight'] = df[~df['Rating'].isnull()]['Rating'].apply(lambda rating : riskWeight.at[rating])
+        df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
+        df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
         return df
 
     def aggregateDRC(self, riskClass, buckets):
-        # Create capital dictionary
+        # Create capital dictionary.  The previously computed Bucket Capital is ignored as on CC the Hedge Benefit Ratio
+        # is computed using the entire portfiolio.
         capital = {}
         capital['RiskClass'] = riskClass
-        HBR = buckets['NetLong'].sum() / (buckets['NetLong'].sum() - buckets['NetShort'].sum())
-        buckets.loc[:, 'DRC'] = buckets['WeightedNetLong'] + HBR * buckets['WeightedNetShort']
+        HBR = buckets['NetJTDLong'].sum() / (buckets['NetJTDLong'].sum() - buckets['NetJTDShort'].sum())
+        buckets.loc[:, 'DRC'] = buckets['WeightedNetJTDLong'] + HBR * buckets['WeightedNetJTDShort']
         buckets.loc[:, 'Capital'] = buckets['DRC'].apply(lambda x : max(x, 0) + 0.5 * min(x, 0))
         capital['Correlation'] = 'Medium'
         capital['Capital'] = buckets['Capital'].sum()

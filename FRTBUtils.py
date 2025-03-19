@@ -72,6 +72,13 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
     # idx is the row index for the array, if there is one
     # cols is the column index for the array, if there is one
     # __processKey gets these fromt the enclosing scope
+    dataDict = {}
+    k = None
+    name = ''
+    idx = []
+    cols = None
+    values = []
+
 
     def __processKey():
         #
@@ -104,31 +111,11 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
             #
             dataDict[k] = values[0]
 
-        if k in dataTypes:
-            if not k in listKeys + arrayKeys:
-                # scalar value
-                #
-                try:
-                    dataDict[k] = _typeMap[dataTypes[k]](values[0])
-                except:
-                    raise ValueError(f"Bad type conversion from '{values[0]}' (type: {type(values[0])})' for key '{k}' in  source '{sourceName}'")
-            else:
-                try:
-                    dataDict[k] = dataDict[k].astype(dataTypes[k]).fillna(_fillnaMap[dataTypes[k]])
-                except:
-                    raise ValueError(f"Bad type conversion from (type: {type(dataDict[k])})' for key '{k}' in  source '{sourceName}'")
 
     ##################
     #
     # Main part of function
     #
-    dataDict = {}
-    k = None
-    name = ''
-    idx = []
-    cols = None
-    values = []
-
     for _, r in df.iterrows():
         # column 0 in the name of this data, i.e. the key
         # if it's empty then we are still processing the previous key
@@ -170,17 +157,16 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
             if r.shape[0] > col + 1 and r.at[col + 1] != '':
                 # Horizontal list
                 if k in colHdrKeys:
-                    values = _toList(r.loc[col:], len(cols))
+                    values = _toList(r.loc[col:],len(cols) + col - 1)
                 else:
                     values = _toList(r.loc[col:])
             elif r.at[col] != '':
                 # Vertical list or scalar
                 values.append(r.at[col])
-        elif not all(r==''):
+        elif k in colHdrKeys and not r.iloc[col:len(cols) + col].eq('').all():
             # Must be an array row
-            if k in colHdrKeys:
-                values.append(_toList(r.loc[col:], len(cols)))
-            else:
+            values.append(_toList(r.loc[col:], len(cols) + col - 1))
+        elif not r.eq('').all():
                 values.append(_toList(r.loc[col:]))
 
     # process the last key
@@ -200,5 +186,27 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
                 dataDict[k].rename(columns=dict(zip(dataDict[k].columns, eval(v))), inplace=True)
             except Exception as err:
                 raise ValueError(f"Error column index on '{k}' with '{v}' in source '{sourceName}': {err}")
+
+    # Now set the types and fill NAs where needed
+    for k, v in dataDict.items():
+        if k in dataTypes:
+            if not k in listKeys + arrayKeys:
+                # scalar value
+                #
+                try:
+                    dataDict[k] = _typeMap[dataTypes[k]](v)
+                    # dataDict[k] = _typeMap[dataTypes[k]](v[0])
+                except:
+                    raise ValueError(f"Bad type conversion from '{v[0]}' (type: {type(v[0])} -> {_typeMap[dataTypes[k]]})' for key '{k}' in  source '{sourceName}'")
+            else:
+                try:
+                    if isinstance(dataTypes[k], dict):
+                        fillMap = dict((k1, _fillnaMap[v1]) for k1,v1 in dataTypes[k].items())
+                        dataDict[k] = dataDict[k].astype(dataTypes[k]).fillna(fillMap)
+                    else:
+                        dataDict[k] = dataDict[k].astype(dataTypes[k]).fillna(_fillnaMap[dataTypes[k]])
+                except:
+                    raise ValueError(f"Bad type conversion from (type: {type(dataDict[k])})' for key '{k}' in  source '{sourceName}'")
+
 
     return dataDict

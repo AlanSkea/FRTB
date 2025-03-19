@@ -49,7 +49,7 @@ variants = {
     'MS_FXVega'         : 'Variant 1',
     'MS_FXCurvature'    : 'Variant 1a',
     'MD_CR_DRC'         : 'Variant 2',
-    'MD_CC_DRC'         : 'Variant 2',
+    'MD_CC_DRC'         : None,
     'MD_CS_DRC'         : 'Variant 2',
     'MR_RRAO'           : None,
     'MR_RRAO'           : None,
@@ -233,10 +233,10 @@ CRIFColumnMap_MR = {
     'MS_CRDelta' : {
         'Sensitivity ID'    : 'Sensitivity ID',
         'RiskType'          : 'RiskClass',
-        'Qualifier'         : 'CreditName',     # Issuer / Index Name
+        'Qualifier'         : 'CreditName',         # Issuer / Index Name
         'Bucket'            : 'Bucket',
         'Label1'            : 'Tenor',
-        'Label2'            : 'CurveType',      # BOND / CDS
+        'Label2'            : 'CurveType',          # BOND / CDS
         'Amount'            : 'Sensitivity',
         'CreditQuality'     : 'Rating',
     },
@@ -263,10 +263,10 @@ CRIFColumnMap_MR = {
     'MS_CSDelta' : {
         'Sensitivity ID'    : 'Sensitivity ID',
         'RiskType'          : 'RiskClass',
-        'Qualifier'         : 'Underlier',      # Issuer / Tranche / Index Name
+        'Qualifier'         : 'Underlier',          # Issuer / Tranche / Index Name
         'Bucket'            : 'Bucket',
         'Label1'            : 'Tenor',
-        'Label2'            : 'CurveType',      # BOND / CDS
+        'Label2'            : 'CurveType',          # BOND / CDS
         'Amount'            : 'Sensitivity',
     },
     'MS_CSVega' : {
@@ -290,10 +290,10 @@ CRIFColumnMap_MR = {
     'MS_CCDelta' : {
         'Sensitivity ID'    : 'Sensitivity ID',
         'RiskType'          : 'RiskClass',
-        'Qualifier'         : 'Underlier',      # Issuer / Tranche / Index Name
+        'Qualifier'         : 'Underlier',          # Issuer / Tranche / Index Name
         'Bucket'            : 'Bucket',
         'Label1'            : 'Tenor',
-        'Label2'            : 'CurveType',       # BOND / CDS
+        'Label2'            : 'CurveType',          # BOND / CDS
         'Amount'            : 'Sensitivity',
     },
     'MS_CCVega' : {
@@ -309,7 +309,7 @@ CRIFColumnMap_MR = {
         'Sensitivity ID'    : 'Sensitivity ID',
         'Variant'           : 'Variant',
         'RiskType'          : 'RiskClass',
-        'Qualifier'         : 'Underlier',         # Issuer / Tranche
+        'Qualifier'         : 'Underlier',          # Issuer / Tranche
         'Bucket'            : 'Bucket',
         'Label1'            : 'RiskWeight',
         'Amount'            : 'Sensitivity',
@@ -371,7 +371,7 @@ CRIFColumnMap_MR = {
         'Sensitivity ID'    : 'Sensitivity ID',
         'RiskType'          : 'RiskClass',
         'Qualifier'         : 'Bucket',
-        'Bucket'            : 'LiquidCurrency',    # 1 = Liquid, 2 = Illiquid
+        'Bucket'            : 'LiquidCurrency',     # 1 = Liquid, 2 = Illiquid
         'Amount'            : 'Sensitivity',
     },
     'MS_FXVega' : {
@@ -387,7 +387,7 @@ CRIFColumnMap_MR = {
         'Variant'           : 'Variant',
         'RiskType'          : 'RiskClass',
         'Qualifier'         : 'Bucket',
-        'Bucket'            : 'LiquidCurrency',    # 1 = Liquid, 2 = Illiquid
+        'Bucket'            : 'LiquidCurrency',     # 1 = Liquid, 2 = Illiquid
         'Label1'            : 'RiskWeight',
         'Amount'            : 'Sensitivity',
     },
@@ -397,11 +397,9 @@ CRIFColumnMap_MR = {
         'RiskType'          : 'RiskClass',
         'Qualifier'         : 'Name',
         'Bucket'            : 'Bucket',
-        'Label1'            : 'RecoveryRate',
         'Label2'            : 'Seniority',
-        'AmountUSD'         : 'DefaultImpact',
         'Amount'            : 'JTD',
-        'Label3'            : 'Notional',          # Only in Variant1
+        # 'Label3'            : 'Notional',          # Only in Variant1
         'EndDate'           : 'MaturityDate',
         'CreditQuality'     : 'Rating',
         'LongShortInd'      : 'LongShortInd',
@@ -413,15 +411,10 @@ CRIFColumnMap_MR = {
         'RiskType'          : 'RiskClass',
         'Qualifier'         : 'Issuer/Tranche',
         'Bucket'            : 'Bucket',
-        'Label1'            : 'RecoveryRate',
-        'Label2'            : 'Seniority',
-        'AmountUSD'         : 'DefaultImpact',
+        # 'Label2'            : 'Seniority',         # Only in deprecated Variant 1
         'Amount'            : 'JTD',
-        'Label3'            : 'Notional',
         'EndDate'           : 'MaturityDate',
-        'CreditQuality'     : 'RiskWeight',       # Variant 2.  In Variant 1 this is 'Rating' and the TrancheThickness is needed
-        'LongShortInd'      : 'LongShortInd',
-        'TrancheThickness'  : 'TrancheThickness'
+        'CreditQuality'     : 'RiskWeight'          # Variant 2.  In (deprecated) Variant 1 'Rating' and the TrancheThickness is needed instead
     },
     'MD_CC_DRC' : {
         'Sensitivity ID'    : 'Sensitivity ID',
@@ -429,17 +422,15 @@ CRIFColumnMap_MR = {
         'RiskType'          : 'RiskClass',
         'Qualifier'         : 'Series',
         'Bucket'            : 'Bucket',
-        'Label1'            : 'TrancheNames',      # e.g. for ITRAXX IG it could be 1, 2, 3, 4 .. 125
-        'Label2'            : 'Seniority',         # or Attachment and Detachment poins, e.g. 0-3, 3-6, 'Senior', 'Non-sec'
-        'AmountUSD'         : 'DefaultImpact',
+        'Label1'            : 'Tranche',            # e.g. for ITRAXX Europe it could be 0-3, 22-100.  For a SingleName Hedge, the ObligorName, 
+        'Label2'            : 'ExposureType',       # CDSIndex, CDSIndexTranche, SingleNameHedge, Bespoke.
         'Amount'            : 'JTD',
-        'Label3'            : 'Notional',
         'EndDate'           : 'MaturityDate',
-        'CreditQuality'     : 'Rating',
-        'LongShortInd'      : 'LongShortInd',
-        'TrancheThickness'  : 'TrancheThickness'
+        'CreditQuality'     : 'Rating',             # Variant 2.  In Variant 1 this is the RiskWeight.  FNetF supports both variants.
+        # 'LongShortInd'      : 'LongShortInd',
+        # 'TrancheThickness'  : 'TrancheThickness'
     },
-    'MR_RRAO' : {                               # This one needs some code to set the Bucket appropriately (Exotic / Non-Exotic)
+    'MR_RRAO' : {                                   # This one needs some code to set the Bucket appropriately (Exotic / Non-Exotic)
         'Sensitivity ID'    : 'Sensitivity ID',
         'RiskType'          : 'RiskClass',
         'Bucket'            : 'Bucket',
@@ -643,22 +634,27 @@ class CRIF(FNetF.FNetF):
         # If we have SubBuckets then break them out
         #
         if 'SubBucket' in FNetF.FNetFieldType[riskClass].keys():
-            if riskClass.startswith('MS_CR'):
-                CBBkt = self._config.getConfigItem('MS_CR', 'CoveredBondBucket')
-                HQ = self._config.getConfigItem('MS_CR', 'CoveredBondHighQuality')
+            if riskClass[:5] == 'MD_CR':
+                ndf.loc[:, 'SubBucket'] = 'Cash'            # This exists only for use in the reg. reporting templates (Cash / Deriv / DerivAlt), CRIF has no info on this.
+            elif riskClass[:5] == 'MR_RR':
+                ndf.loc[:, 'SubBucket'] = ''                # This exists only for use in the reg. reporting templates, CRIF has no info on this.
+            else:
+                if riskClass.startswith('MS_CR'):
+                    CBBkt = self._config.getConfigItem('MS_CR', 'CoveredBondBucket')
+                    HQ = self._config.getConfigItem('MS_CR', 'CoveredBondHighQuality')
 
-                if riskClass .endswith('Delta'):
-                    ndf.loc[(ndf['Bucket']==CBBkt) & (ndf['Rating'].isin(HQ)), ['Bucket']] = CBBkt+'a'
-                    ndf.loc[(ndf['Bucket']==CBBkt) & (~ndf['Rating'].isin(HQ)), ['Bucket']] = CBBkt+'b'
-                else:
-                    # The SubBucket is only used in MS_CRDelta and so can be anything for the others
-                    # as we don't have Rating we just assign arbitrarily
-                    ndf.loc[ndf['Bucket']==CBBkt, ['Bucket']] = CBBkt+'b'
+                    if riskClass .endswith('Delta'):
+                        ndf.loc[(ndf['Bucket']==CBBkt) & (ndf['Rating'].isin(HQ)), ['Bucket']] = CBBkt+'a'
+                        ndf.loc[(ndf['Bucket']==CBBkt) & (~ndf['Rating'].isin(HQ)), ['Bucket']] = CBBkt+'b'
+                    else:
+                        # The SubBucket is only used in MS_CRDelta and so can be anything for the others
+                        # as we don't have Rating we just assign arbitrarily
+                        ndf.loc[ndf['Bucket']==CBBkt, ['Bucket']] = CBBkt+'b'
 
-            SubBuckets = self._config.getConfigItem(riskClass[:5], 'Bucket')[['Bucket', 'SubBucket']]
-            bktMap = dict([(sb['Bucket']+sb['SubBucket'], (sb['Bucket'], sb['SubBucket'])) for _, sb in SubBuckets.iterrows()])
-            ndf.loc[:, 'SubBucket'] = ndf['Bucket'].apply(lambda x : bktMap[x][1] if x in bktMap.keys() else x)
-            ndf.loc[:, 'Bucket'] = ndf['Bucket'].apply(lambda x : bktMap[x][0] if x in bktMap.keys() else x)
+                SubBuckets = self._config.getConfigItem(riskClass[:5], 'Bucket')[['Bucket', 'SubBucket']]
+                bktMap = dict([(sb['Bucket']+sb['SubBucket'], (sb['Bucket'], sb['SubBucket'])) for _, sb in SubBuckets.iterrows()])
+                ndf.loc[:, 'SubBucket'] = ndf['Bucket'].apply(lambda x : bktMap[x][1] if x in bktMap.keys() else x)
+                ndf.loc[:, 'Bucket'] = ndf['Bucket'].apply(lambda x : bktMap[x][0] if x in bktMap.keys() else x)
 
         #
         # Special magic for riskClass specific transformations
@@ -678,6 +674,9 @@ class CRIF(FNetF.FNetF):
             ndf.loc[:, 'SpotRepo'] = ndf['SpotRepo'].str.capitalize()
         elif riskClass[:5] == 'MD_CR':
             ndf.loc[:, 'Seniority'] = ndf.apply(lambda x : 'COVERED' if x['CoveredBondInd'] == 'Y' else x['Seniority'], axis=1)
+        elif riskClass[:5] == 'MD_CC':
+            ndf.loc[:, 'RiskWeight'] = pd.to_numeric(ndf['Rating'], errors='coerce')
+            ndf.loc[~ndf['RiskWeight'].isnull(), 'Rating'] = None
         elif riskClass[:5] == 'CS_BA':  # BAExposure or BAHedge.  These both become BA_CVA
             ndf.loc[:, 'Bucket'] = ndf['Bucket'].str[:-1]
             ndf.loc[:, 'BA-CVA-Type'] = ndf['RiskClass']

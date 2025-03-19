@@ -44,15 +44,26 @@ class FRTBConfig(object):
     _configFile = 'FRTBConfig_{}.xlsx'
 
     #
-    # in these definitions of the structure of the config data, the addIndex and addColumns keys
-    # contain special magic.  They are used to set the row and column indices of the dataframes
-    # but can refer to other elements of the config data for that riskClass.  The strings are
-    # evaluated in the context of the dataDict dictionary into which all the config data is
-    # being loaded.  The usual use-case is to set an index from the list of buckets, but in the
-    # IR risk classes, the index is set from the list of tenors.  The structure of the addIndex
-    # and addColumns dictionaries is that the key is the name of the data item to which the row
-    # index or column indsex is to be added, and the value is the string to be evaluated to get
-    # the index or column values.
+    # The following describes the shape of the data for each of the keys in the config.  If the
+    # config key appears in a list here then it is given the treatment appropriate for that list.
+    # Possible list memberships are:
+    #   'listKeys'      : This lists the keys that have a python list of values.  They may be laid out
+    #                     horizontally or vertically.  Lists may have headers naming the items in either
+    #                     the first row or columns depending on the layout of the list.  listKeys are
+    #                     read inot pandas.Series objects.
+    #   'arrayKeys'     : List of keys that are arrays
+    #   'rowHdrKeys'    : List of keys that have row headers
+    #   'colHdrKeys'    : List of keys that have column headers
+    #   'addIndex'      : Dictionary of keys and expressions to eval to create index labels
+    #   'addColumns'    : Dictionary of keys and expressions to eval to creatre column lalels
+    #
+    # The addIndex and addColumns keys contain special magic.  They are used to set the row and column
+    # indices of a DataFrame or the index of a Series and can refer to other elements of the config data
+    # for that riskClass.  The strings are evaluated in the context of the dataDict dictionary into which
+    # all the config data is being loaded.  The usual use-case is to set an index from the list of buckets,
+    # but in the IR risk classes, the index is set from the list of tenors.  The structure of the addIndex
+    # and addColumns dictionaries is that the key is the name of the data item to which the row index or
+    # column indsex is to be added, and the value is the string to be evaluated to get the index or column values.
     #
     _riskClassCongigKeyTypes = {
             'MR' : {
@@ -125,7 +136,9 @@ class FRTBConfig(object):
             },
             'MR_RR' : {
                 'listKeys' : ['RiskWeight'],
-                'rowHdrKeys' : ['RiskWeight']
+                'arrayKeys' : ['Buckets'],
+                'rowHdrKeys' : ['RiskWeight'],
+                'colHdrKeys' : ['Buckets']
             },
             'CVA' : {
                 'arrayKeys' : ['BA-Bucket', 'BA-RiskWeight'],
