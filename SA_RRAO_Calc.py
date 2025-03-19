@@ -56,22 +56,32 @@ class MR_RR_SA_RRAO(FRTBCalculator.FRTBCalculator):
 
     def applyRiskWeights(self, riskClass, df):
         RW = self.getConfigItem('RiskWeight')
-        df.loc[:, 'RiskWeight'] = df['Bucket'].apply(lambda x: RW[x])
-        df.loc[:, 'Capital'] = df['RiskWeight'] * df['NotionalAmount']
-        return df
-    
+        ndf = df.copy()
+        ndf.loc[:, 'RiskWeight'] = ndf['Bucket'].apply(lambda x: RW[x])
+        ndf.loc[:, 'WeightedNotionalAmount'] = ndf['RiskWeight'] * df['NotionalAmount']
+        return ndf
+
 
     def collectRiskFactors(self, riskClass, df):
-        return df
+        # df has all the input data for a single Bucket but might be more granular than the
+        # bucket risk factors we need.  So here we aggregate all the rows for the same risk
+        # factor into a single row.  In RRAO the buckets are artificial and there are no factor
+        # attributes.  This exists just so it can be called consistently with the other calculators.
+        #
+        factorFields = []
+        valueFields = ['NotionalAmount', 'RiskWeight', 'WeightedNotionalAmount']
+        ndf = df[['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields + valueFields].groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields, dropna=False).sum().reset_index()
+        return ndf
 
 
     # Compute RRAO for a single bucket (e.g. Exotic or Non-Exotic)
     #
     def calcBucketRRAO(self, riskClass, bucket, df):
-        capital = df['Capital'].sum()
+        capital = df['WeightedNotionalAmount'].sum()
         bucketRRAO = {
             'RiskClass': riskClass,
             'Bucket': bucket,
+            'Correlation' :'Medium',
             'Capital': capital
         }
         return [bucketRRAO]

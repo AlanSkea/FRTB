@@ -136,7 +136,9 @@ class FRTBConfig(object):
             },
             'MR_RR' : {
                 'listKeys' : ['RiskWeight'],
-                'rowHdrKeys' : ['RiskWeight']
+                'arrayKeys' : ['Buckets'],
+                'rowHdrKeys' : ['RiskWeight'],
+                'colHdrKeys' : ['Buckets']
             },
             'CVA' : {
                 'arrayKeys' : ['BA-Bucket', 'BA-RiskWeight'],
