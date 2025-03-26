@@ -201,12 +201,12 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
             else:
                 try:
                     if isinstance(dataTypes[k], dict):
-                        fillMap = dict((k1, _fillnaMap[v1]) for k1,v1 in dataTypes[k].items())
-                        dataDict[k] = dataDict[k].astype(dataTypes[k]).fillna(fillMap)
-                    else:
+                        typeMap = dict((k1, v1) for k1, v1 in dataTypes[k].items() if k1 in dataDict[k].columns)
+                        fillMap = dict((k1, _fillnaMap[v1]) for k1,v1 in dataTypes[k].items() if k1 in dataDict[k].columns)
+                        dataDict[k] = dataDict[k].astype(typeMap).fillna(fillMap)
+                    elif k in dataDict.keys():
                         dataDict[k] = dataDict[k].astype(dataTypes[k]).fillna(_fillnaMap[dataTypes[k]])
                 except:
                     raise ValueError(f"Bad type conversion from (type: {type(dataDict[k])})' for key '{k}' in  source '{sourceName}'")
-
 
     return dataDict
