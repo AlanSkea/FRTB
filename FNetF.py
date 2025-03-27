@@ -270,6 +270,7 @@ FNetFieldType = {
         'Bucket'                        : 'str',
         'Issuer/Tranche'                : 'str',
         'MaturityDate'                  : 'str',
+        'Rating'                        : 'object',     # Sometime this is None and needs to be kept as NoneType.  Otherwise it's a 'str' and 'object' is OK for that
         'RiskWeight'                    : 'float64',
         'JTD'                           : 'float64',
     },
@@ -445,7 +446,7 @@ class FNetF():
                     self._params =FNU.extractKeyedData(self.FNF_Params_Tab, df, {})  # empty dataTypes dictionary as all are assumed to be 'str'ings
 
                     if self._params['FNetFormatVersion'] != FNetFormatVersion:
-                        print(f"Incomopatible FNetFormatVersion: code version = {FNetFormatVersion}, file version = {self._params['FNetFormatVersion']}")
+                        print(f"Incompatible FNetFormatVersion: code version = {FNetFormatVersion}, file version = {self._params['FNetFormatVersion']}")
                         return None
                 elif sheet in self.FNF_Test_Tabs:
                     unitTests = pd.read_excel(fnf, sheet_name=sheet, dtype=str)
@@ -467,7 +468,7 @@ class FNetF():
                     for col, dtype in FNetFieldType[sheet].items():
                         # check the columns specified in the type map all exist before we convert
                         if col not in df.columns:
-                            print(f"Required column {col} not found in {sheet}")
+                            print(f"Column {col} not found in {sheet}")
                         elif dtype == 'bool':
                             df.loc[:, col] = df[col].apply(lambda x : False if x == 'False' else True)
                             typemap[col] = dtype
@@ -630,6 +631,14 @@ class FNetF():
         riskClass = self._tests[testSet][self._tests[testSet]['Test ID'] == testID]['RiskClass'].iat[0]
         sensis = self._tests[testSet][self._tests[testSet]['Test ID'] == testID]['Sensitivity IDs'].iat[0].replace(', ', ',').split(',')
         return self._sensis[riskClass][self._sensis[riskClass]['Sensitivity ID'].isin(sensis)]
+
+
+    def addRiskClassFields(seld, rc, fields):
+        for k, v in fields.items():
+            if k in FNetFieldType[rc].keys():
+                print(f'Warning: spec for RiskClass {rc} alrady contains field {k} - spec unchanged')
+            else:
+                FNetFieldType[rc][k] = v
 
 
     def save(self, filename):

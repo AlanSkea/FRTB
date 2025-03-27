@@ -97,8 +97,12 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
         fields = self.getFactorNettingFields()
 
         if 'RiskWeight' in df.columns:
-            # Securitisations already have a RiskWeight in the data and this is needed
+            # Securitisations may already have a RiskWeight in the data and this is needed
             fields.append('RiskWeight')
+
+        if 'Rating' in fields and 'Rating' not in df.columns:
+            # In EU-EBA data there is RiskWeight and not Rating, so ...
+            df.loc[:, 'Rating'] = None
 
         res = pd.DataFrame()
         kk = ['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + fields
@@ -116,6 +120,14 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
         ddf = self.scaleMaturities(df)
         ddf = self.netByObligor(ddf)
         return ddf
+
+
+    def applyRiskWeights(self, riskClass, df):
+        riskWeight = self.getConfigItem('CQRiskWeight')
+        df.loc[~df['Rating'].isnull(), 'RiskWeight'] = df[~df['Rating'].isnull()]['Rating'].apply(lambda rating : riskWeight.at[rating])
+        df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
+        df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
+        return df
 
 
     def collectRiskFactors(self, riskClass, df):
@@ -191,12 +203,12 @@ class MD_CR_SA_DRC(SA_DRC_Calc):
     #
     _factorFields = ['Name', 'Rating']
 
-    def applyRiskWeights(self, riskClass, df):
-        riskWeight = self.getConfigItem('CQRiskWeight')
-        df.loc[:, 'RiskWeight'] = df['Rating'].apply(lambda rating : riskWeight.at[rating])
-        df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
-        df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
-        return df
+    # def applyRiskWeights(self, riskClass, df):
+    #     riskWeight = self.getConfigItem('CQRiskWeight')
+    #     df.loc[:, 'RiskWeight'] = df['Rating'].apply(lambda rating : riskWeight.at[rating])
+    #     df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
+    #     df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
+    #     return df
 
     # Called with data for just one Obligor, this nets at a seniority level and then allows
     # more senior obligations to offset more junior obligations.
@@ -240,12 +252,7 @@ class MD_CS_SA_DRC(SA_DRC_Calc):
     #
     # Securitisations, non Correlation-Trading-Portfolio
     #
-    _factorFields = ['Issuer/Tranche']
-
-    def applyRiskWeights(self, riskClass, df):
-        df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
-        df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
-        return df
+    _factorFields = ['Issuer/Tranche', 'Rating']
 
 
 @FRTBCalculator.registerClass
@@ -255,12 +262,12 @@ class MD_CC_SA_DRC(SA_DRC_Calc):
     #
     _factorFields = ['Series', 'Tranche', 'Rating']
 
-    def applyRiskWeights(self, riskClass, df):
-        riskWeight = self.getConfigItem('CQRiskWeight')
-        df.loc[~df['Rating'].isnull(), 'RiskWeight'] = df[~df['Rating'].isnull()]['Rating'].apply(lambda rating : riskWeight.at[rating])
-        df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
-        df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
-        return df
+    # def applyRiskWeights(self, riskClass, df):
+    #     riskWeight = self.getConfigItem('CQRiskWeight')
+    #     df.loc[~df['Rating'].isnull(), 'RiskWeight'] = df[~df['Rating'].isnull()]['Rating'].apply(lambda rating : riskWeight.at[rating])
+    #     df.loc[:, 'WeightedNetJTDLong'] = df['NetJTDLong'] * df['RiskWeight']
+    #     df.loc[:, 'WeightedNetJTDShort'] = df['NetJTDShort'] * df['RiskWeight']
+    #     return df
 
     def aggregateDRC(self, riskClass, buckets):
         # Create capital dictionary.  The previously computed Bucket Capital is ignored as on CC the Hedge Benefit Ratio

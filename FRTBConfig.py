@@ -131,7 +131,9 @@ class FRTBConfig(object):
                 'rowHdrKeys' : ['CQRiskWeight']
             },
             'MD_CS' : {
+                'listKeys' : ['CQRiskWeight'],
                 'arrayKeys' : ['Bucket'],
+                'rowHdrKeys' : ['CQRiskWeight'],
                 'colHdrKeys' : ['Bucket']
             },
             'MR_RR' : {
@@ -278,6 +280,7 @@ class FRTBConfig(object):
             'CQRiskWeight' : 'float64'
         },
         'MD_CS' : {
+            'CQRiskWeight' : 'float64'
         },
         'MR_RR' : {
             'RiskWeight' : 'float64'
