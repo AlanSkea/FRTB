@@ -633,6 +633,14 @@ class FNetF():
         return self._sensis[riskClass][self._sensis[riskClass]['Sensitivity ID'].isin(sensis)]
 
 
+    def addRiskClassFields(seld, rc, fields):
+        for k, v in fields.items():
+            if k in FNetFieldType[rc].keys():
+                print(f'Warning: spec for RiskClass {rc} alrady contains field {k} - spec unchanged')
+            else:
+                FNetFieldType[rc][k] = v
+
+
     def save(self, filename):
         # create the ExcelWriter object
         writer = pd.ExcelWriter(filename)
