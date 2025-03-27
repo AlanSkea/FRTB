@@ -54,6 +54,13 @@ class MR_RR_SA_RRAO(FRTBCalculator.FRTBCalculator):
         return self.calcBucketRRAO
 
 
+    def prepareData(self, _, df):
+        if 'ExemptionClass' in df.columns:      # EU wants Exepmt residual risks in the report but we don't want them in the calc (Article 325u(4) of Regulation (EU) No 575/2013)
+            return df[df['ExemptionClass'].isna()]
+        else:
+            return df
+
+
     def applyRiskWeights(self, riskClass, df):
         RW = self.getConfigItem('RiskWeight')
         ndf = df.copy()
