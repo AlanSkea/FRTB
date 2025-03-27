@@ -57,7 +57,7 @@ def summariseCapital(ds):
 
 if __name__ == '__main__':
     regulator = 'BCBS'
-    testVersion = '0.8'
+    testVersion = '0.9'
     path = os.path.dirname(__file__)
     infile = os.path.join(path, f'UnitTests_{regulator}_FNetF_v{testVersion}.xlsx')
     outfile = os.path.join(path, f'UnitTests_{regulator}_FNetF_v{testVersion}_out.xlsx')
