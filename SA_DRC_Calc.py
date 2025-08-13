@@ -158,7 +158,11 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
         weightedNetShort = df['WeightedNetJTDShort'].sum()
 
         # compute the hedge benefit ratio and the capital
-        hedgeBenefitRatio = netLong / (netLong - netShort)
+        if netLong == 0:
+            hedgeBenefitRatio = 0       # avoid degenerate case where netShort is also 0
+        else:
+             # netShort is negative so this is the ratio of magnitude of long to magnitude of all
+            hedgeBenefitRatio = netLong / (netLong - netShort)
 
         bucketCapital = {
                 'RiskClass'             : riskClass,
@@ -171,7 +175,7 @@ class SA_DRC_Calc(FRTBCalculator.FRTBCalculator):
                 'WeightedNetJTDLong'    : weightedNetLong,
                 'WeightedNetJTDShort'   : weightedNetShort,
                 'HedgeBenefitRatio'     : hedgeBenefitRatio,
-                'Capital'               : max(weightedNetLong + hedgeBenefitRatio * weightedNetShort, 0)    # EBA varies from this
+                'Capital'               : max(weightedNetLong + hedgeBenefitRatio * weightedNetShort, 0)
             }
 
         return [bucketCapital]
@@ -274,7 +278,13 @@ class MD_CC_SA_DRC(SA_DRC_Calc):
         # is computed using the entire portfiolio.
         capital = {}
         capital['RiskClass'] = riskClass
-        HBR = buckets['NetJTDLong'].sum() / (buckets['NetJTDLong'].sum() - buckets['NetJTDShort'].sum())
+
+        if buckets['NetJTDLong'].sum() == 0:
+            HBR = 0.0                  # avoid degenerate case where NetJTDShort is also 0
+        else:
+            # NetJTDShort is negative so this is the ratio of magnitude of long to magnitude of all
+            HBR = buckets['NetJTDLong'].sum() / (buckets['NetJTDLong'].sum() - buckets['NetJTDShort'].sum())
+
         buckets.loc[:, 'DRC'] = buckets['WeightedNetJTDLong'] + HBR * buckets['WeightedNetJTDShort']
         buckets.loc[:, 'Capital'] = buckets['DRC'].apply(lambda x : max(x, 0) + 0.5 * min(x, 0))
         capital['Correlation'] = 'Medium'
