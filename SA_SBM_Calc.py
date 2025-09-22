@@ -255,7 +255,7 @@ class SA_SBM_Calc(FRTBCalculator.FRTBCalculator):
             capital = {}
             capital['RiskClass'] = riskClass
             # scaledGamma = self.scaleCorrelation(corr, gamma, 0) * 2
-            # Industry consesus is square beofre scaling
+            # Industry consesus is square beofre scaling. SA-SARB (1 July 2025) rules are explicit on this.
             scaledGamma = self.scaleCorrelation(corr, gamma ** 2, 0)
             nbdf = bdf[bdf['Correlation'] == corr].set_index('Bucket')
             psi = 1 - np.outer(nbdf['Sb'].lt(0), nbdf['Sb'].lt(0))
@@ -361,7 +361,7 @@ class SA_SBM_Calc(FRTBCalculator.FRTBCalculator):
 
 
     def scaleCorrelation(self, level, corr, diag):
-        # set the diagonal of the matrix to <diag> as specified by the caller. In general,
+        # if called with a DataFrane then set the diagonal of the matrix to <diag> as specified by the caller. In general,
         #   for intra-bucket rho factors, diag = 1
         #   for inter-bucket gamma factors, diag = 0
         #
@@ -370,9 +370,11 @@ class SA_SBM_Calc(FRTBCalculator.FRTBCalculator):
         elif level == 'High':
             newCorr = np.minimum(corr * 1.25, 1.0)
         else:
-            newCorr = corr.copy()
+            newCorr = corr.copy() if isinstance(corr, pd.DataFrame) else corr
 
-        np.fill_diagonal(newCorr.values, diag)
+        if isinstance(newCorr, pd.DataFrame):       # we might be called with a scalar in which case there is no diagonal
+            np.fill_diagonal(newCorr.values, diag)
+
         return newCorr
 
 
@@ -468,6 +470,7 @@ class MS_IR_SA_SBM_Calc(SA_SBM_Calc):
                         corr = inflRho * optionTenorRho.loc[r[1], c[1]]
 
                     corr = min(corr, 1.0)
+
                 rho[i, j] = rho[j, i] = corr
 
         return pd.DataFrame(rho, index=df.index, columns=df.index)
@@ -511,8 +514,9 @@ class MS_CR_SA_SBM_Calc(SA_SBM_Calc):
             return super().getRiskWeights(riskClass, df)
 
         RWBucket = self.getConfigItem('DeltaBucketRiskWeight')
-        CovBondBucket = self.getConfigItem('CoveredBondBucket')
-        CovBondHighQuality = self.getConfigItem('CoveredBondHighQuality')
+        # Covered Bonds should already be assigned to the appropriate SubBuckets.
+        # CovBondBucket = self.getConfigItem('CoveredBondBucket')
+        # CovBondHighQuality = self.getConfigItem('CoveredBondHighQuality')
         ndf = df.reset_index()
         ndf['RiskWeight'] = ndf.apply(lambda r: RWBucket.at[r['Bucket']+r['SubBucket']], axis=1)
         return ndf.set_index(df.index)
