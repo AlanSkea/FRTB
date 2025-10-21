@@ -138,9 +138,9 @@ class FRTBConfig(object):
             },
             'MR_RR' : {
                 'listKeys' : ['RiskWeight'],
-                'arrayKeys' : ['Buckets'],
+                'arrayKeys' : ['Bucket'],
                 'rowHdrKeys' : ['RiskWeight'],
-                'colHdrKeys' : ['Buckets']
+                'colHdrKeys' : ['Bucket']
             },
             'CVA' : {
                 'arrayKeys' : ['BA-Bucket', 'BA-RiskWeight'],
@@ -508,9 +508,9 @@ class FRTBConfig(object):
 
         if buckets is None:
             if isinstance(bdf, pd.DataFrame):
-                return bdf['Bucket'].to_list()
+                return bdf['Bucket'].unique().tolist()
             else:
-                return bdf.to_list()
+                return bdf.unique().tolist()
         else:
             if isinstance(bdf, pd.DataFrame()):
                 return bdf[bdf['Bucket'].isin(buckets)]['Bucket'].to_list()
@@ -529,7 +529,7 @@ if __name__ == '__main__':
         print('=' * len(cfg))
         print(config.getConfig(cfg))
 
-        if not cfg in ['MR', 'MS_IR', 'MS_FX', 'MD_CC', 'MR_RR', 'CS_IR', 'CS_FX']:
+        if not cfg in ['MR', 'MS_IR', 'MS_FX', 'MD_CC', 'CS_IR', 'CS_FX']:
             print(config.getBuckets(cfg))
 
     print(config.getConfig('MS_FX'))
