@@ -259,7 +259,7 @@ FNetFieldType = {
         'Series'                        : 'str',
         'Tranche'                       : 'str',        # May be a tranche name, maybe a number for the obligpr in the index
         'MaturityDate'                  : 'str',
-        'Rating'                        : 'object',     # Sometime this is None and needs to be kept as NoneType.  Otherwise it's a 'str' and 'object' is OK for that
+        'Rating'                        : 'object',     # Sometimes this is None and needs to be kept as NoneType.  Otherwise it's a 'str' and 'object' is OK for that
         'RiskWeight'                    : 'float64',
         'JTD'                           : 'float64',
     },
@@ -270,7 +270,7 @@ FNetFieldType = {
         'Bucket'                        : 'str',
         'Issuer/Tranche'                : 'str',
         'MaturityDate'                  : 'str',
-        'Rating'                        : 'object',     # Sometime this is None and needs to be kept as NoneType.  Otherwise it's a 'str' and 'object' is OK for that
+        'Rating'                        : 'object',     # Sometimes this is None and needs to be kept as NoneType.  Otherwise it's a 'str' and 'object' is OK for that
         'RiskWeight'                    : 'float64',
         'JTD'                           : 'float64',
     },
@@ -482,11 +482,12 @@ class FNetF():
                 elif sheet != self.FNF_Copyright_Tab:
                     print(f"Unknown sheet '{sheet}' in file '{filepath}'")
 
-        self._filename = filepath
 
         if not self._sensis :
             return None
         else:
+            self._filename = filepath
+            self.setParam('FileName', filepath)
             sensis = pd.concat([x[['Sensitivity ID', 'RiskClass']] for x in self._sensis.values()], axis=0).set_index('Sensitivity ID', drop=False)
 
             # Collect all the sensitivities for each combination
@@ -538,6 +539,14 @@ class FNetF():
                 comboSensis.set_index(['Test Set', 'Test ID'], inplace=True)
     
             return comboSensis
+
+
+    def getParams(self):
+        if not self._params:
+            raise ValueError("No params data loaded")
+            return None
+        
+        return self._params
 
 
     def getParam(self, param):
@@ -689,7 +698,7 @@ class FNetF():
 
 if __name__ == '__main__':
     fnf = FNetF()
-    path = os.path.join(os.sep, 'Volumes', 'home', 'FRTB', 'Testing', 'UnitTests_BCBS_FNetF_Generated_v0.2.xlsx')
+    path = os.path.join(os.sep, 'Volumes', 'home', 'FRTB', 'Testing', 'UnitTests_BCBS_FNetF_Generated_v0.8.xlsx')
     CS = fnf.load(path)
     print(fnf._params)
 
