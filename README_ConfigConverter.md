@@ -1,5 +1,7 @@
 # FRTB Config Converter
 
+**Copyright:** (C) 2024-2025 frtb.net limited
+
 A bidirectional converter for FRTB configuration files between Excel (.xlsx) and JSON formats.
 
 ## Features
