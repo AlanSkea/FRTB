@@ -1,9 +1,9 @@
-# FNetF (frtb.net Format) Documentation
+# FNet Format (frtb.net Format) Documentation
 
 **Version:** 3.0
 **Copyright:** (C) 2024-2025 frtb.net limited
 
-This document provides comprehensive documentation for the FNetF (frtb.net Format) file format, which is used for storing FRTB (Fundamental Review of the Trading Book) sensitivity data and unit tests. The format supports both Excel (.xlsx) and JSON (.json) representations.
+This document provides comprehensive documentation for the FNet Format (frtb.net Format) file format, which is used for storing FRTB (Fundamental Review of the Trading Book) sensitivity data and unit tests. The format supports both Excel (.xlsx) and JSON (.json) representations.
 
 ---
 
@@ -25,7 +25,7 @@ This document provides comprehensive documentation for the FNetF (frtb.net Forma
 
 ## Overview
 
-FNetF is a standardized format for storing:
+FNet Format is a standardized format for storing:
 - **Sensitivity data** for FRTB capital calculations
 - **Unit test definitions** with benchmark results for validation
 
@@ -33,22 +33,25 @@ The format can be stored in two equivalent representations:
 - **Excel format** (.xlsx): Each RiskClass is a separate worksheet tab
 - **JSON format** (.json): Structured document with equivalent data
 
+It closely adheres to the representation needed for calculation and specifies the record structures for different Risk Classes separately for clarity when reading and ease of use in code.
+
 ### Portfolio Segmentation
 
-Sensitivities are organised using two grouping fields:
+Sensitivities are organised using two grouping fields.  The combination of these fields define separate portfolios that are each computed stand-alone in the frtb.net calculators.  The intent is to allow the calculators to be called with data from many legal entities with various stand-alone partitions and be able to compute the entire capital in one run.  The grouping fiels are:
 
-1. **RiskGroup** - Used to separate sensitivities into portfolios that are each to be computed on a standalone basis. The typical use would be for a single Legal Entity capital calculation.
+1. **RiskGroup** - Used to separate sensitivities into portfolios sets.  Each set might comprise a number of subsets to be computed stand-alone and then combined to give the RiskGroup capital. A RiskGroup might be a single reporting legal entity.
 
 2. **RiskSubGroup** - Used to identify partitions within a RiskGroup portfolio that must be kept separate. Examples include:
    - **Internal Risk Transfer (IRT) desk** - positions transferred between the banking book and trading book - these must be computed stand-alone
    - **Credit Securitisations (mandate-based approach)** - securitisation positions computed using the mandate-based approach - each of these must be computed stand-alone
    - **Divisional analysis** - to evaluate the contribution to capital of a divisions or desks within a legal entity (e.g., for capital utilisation reporting)
+   - **IMA Desk calculations**  When using IMA the PLAT (P&L Attribution Test) rules require the ability to compute the desk under Standardised Approach in order to be able to compute the caopital add-on when PLAT for the desk is inthe amber zone.
 
 ### SubBuckets in SBM
 
 SubBuckets are not formally defined in the Basel standard (nor in jurisdiction-specific regulations that derive from it), but they provide a useful way to partition a bucket when products within that bucket attract different risk weights.
 
-For example, the EU partitions Commodities Bucket 3 (Energy - Electricity and Carbon Trading) into three SubBuckets with different risk weights:
+For example, the EU partitions Commodities Bucket 3 (Energy - Electricity and Carbon Trading) into three parts with different risk weights:
 
 | Bucket | SubBucket | Commodity Type | Risk Weight |
 |--------|-----------|----------------|-------------|
@@ -56,11 +59,16 @@ For example, the EU partitions Commodities Bucket 3 (Energy - Electricity and Ca
 | 3 | a | Energy - EU ETS carbon trading | 40% |
 | 3 | b | Energy - non-EU ETS carbon trading | 60% |
 
-All SubBuckets within a Bucket are treated as part of the same bucket for correlation and aggregation purposes in the later stages of the capital calculation.
+Defining these as SubBuckets allows specificaiton of the Risk Weights at a SubBucket level (where applicable) while allowing the inter-bucket and intra-bucket correlation factors to be specified at a Bucket level.
+
+All SubBuckets within a Bucket are treated as part of the same bucket for correlation and aggregation purposes in the later stages of the capital calculation.  This approach can be used consistently across all SBM Risk Classes.
+
 
 ---
 
 ## File Structure
+
+When stored as an Excel spreadsheet, the FNet Format consist of a number of tabs as follows:
 
 ### Excel Format Structure
 
@@ -799,7 +807,7 @@ Full version including eligible hedges.
 
 ## Unit Test Tabs
 
-FNetF supports four types of unit test tabs for validation:
+FNet Format supports four types of unit test tabs for validation:
 
 ### Test Tab Types
 
@@ -919,7 +927,7 @@ The `Sensitivity IDs` field supports:
 
 ## File Conversion
 
-FNetF files can be converted between Excel and JSON using:
+FNet Format files can be converted between Excel and JSON using:
 
 ```python
 from FNetF import FNetF
@@ -947,11 +955,11 @@ python FNetFConverter.py input.json -o output.xlsx
 
 ## CRIF (Common Risk Interchange Format) Mapping
 
-This section documents the correspondence between FNetF and the ISDA CRIF (Common Risk Interchange Format) v1.6 standard.
+This section documents the correspondence between FNet Format and the ISDA CRIF (Common Risk Interchange Format) v1.6 standard.
 
 ### Overview
 
-CRIF is an industry-standard format defined by ISDA for exchanging FRTB-SA risk data. While FNetF uses explicit field names per RiskClass, CRIF uses a generic column structure with overloaded fields (`Label1`, `Label2`, `Label3`, `Qualifier`, etc.) that have different meanings depending on the RiskType.
+CRIF is an industry-standard format defined by ISDA for exchanging FRTB-SA risk data. While FNet Format uses explicit field names per RiskClass, CRIF uses a generic column structure with overloaded fields (`Label1`, `Label2`, `Label3`, `Qualifier`, etc.) that have different meanings depending on the RiskType.
 
 ### CRIF Column Structure
 
@@ -1050,7 +1058,7 @@ CRIF is an industry-standard format defined by ISDA for exchanging FRTB-SA risk 
 
 ### CRIF Variants
 
-CRIF supports multiple input variants for Vega, Curvature, and DRC. FNetF uses specific variants:
+CRIF supports multiple input variants for Vega, Curvature, and DRC. FNet Format uses specific variants:
 
 | FNetF RiskClass | CRIF Variant | Description |
 |-----------------|--------------|-------------|
@@ -1092,7 +1100,7 @@ CRIF supports multiple input variants for Vega, Curvature, and DRC. FNetF uses s
 | `Label1` | `RiskWeight` | Positive for CVR+, negative for CVR- |
 | `Amount` | `CVR+` or `CVR-` | Based on sign of RiskWeight |
 
-**Note:** In CRIF, curvature requires two rows per position (CVR+ and CVR-). In FNetF, these are combined into a single row with separate `CVR+` and `CVR-` columns.
+**Note:** In CRIF, curvature requires two rows per position (CVR+ and CVR-). In FNet Format, these are combined into a single row with separate `CVR+` and `CVR-` columns.
 
 #### MS_CRDelta (CSR_NS_DELTA)
 
@@ -1160,7 +1168,7 @@ CRIF supports multiple input variants for Vega, Curvature, and DRC. FNetF uses s
 
 ### CVA Sensitivity Mapping
 
-CVA sensitivities in CRIF use `Label2` to distinguish between CVA portfolio sensitivities (`CVA`) and hedge sensitivities (`HDG`). In FNetF, these are stored in separate columns:
+CVA sensitivities in CRIF use `Label2` to distinguish between CVA portfolio sensitivities (`CVA`) and hedge sensitivities (`HDG`). In FNet Format, these are stored in separate columns:
 
 | CRIF Label2 | FNetF Field |
 |-------------|-------------|
@@ -1205,7 +1213,7 @@ CVA sensitivities in CRIF use `Label2` to distinguish between CVA portfolio sens
 
 ### Regulator Mapping
 
-CRIF files may specify regulators differently from FNetF:
+CRIF files may specify regulators differently from FNet Format:
 
 | CRIF Regulator | FNetF Regulator |
 |----------------|-----------------|
@@ -1217,7 +1225,7 @@ CRIF files may specify regulators differently from FNetF:
 
 ### Conversion Examples
 
-#### CRIF to FNetF (Python)
+#### CRIF to FNet Format (Python)
 
 ```python
 from CRIF import CRIF
@@ -1226,20 +1234,20 @@ import pandas as pd
 # Read CRIF data
 crif_sensis = pd.read_csv('crif_market_risk.csv')
 
-# Convert to FNetF (is_cva=False for Market Risk)
+# Convert to FNet Format (is_cva=False for Market Risk)
 fnf = CRIF(regulator='BCBS', cva=False, sensis=crif_sensis)
 
-# Save as FNetF
+# Save as FNet Format
 fnf.save('output.xlsx')
 ```
 
-#### FNetF to CRIF (Python)
+#### FNet Format to CRIF (Python)
 
 ```python
 from FNetF import FNetF
 from CRIF import CRIF
 
-# Load FNetF
+# Load FNet Format
 fnf = FNetF()
 fnf.load('input.xlsx')
 
