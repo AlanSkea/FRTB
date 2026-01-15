@@ -3,7 +3,7 @@
 **Version:** 3.0
 **Copyright:** (C) 2024-2025 frtb.net limited
 
-This document provides comprehensive documentation for the FNet Format (frtb.net Format) file format, which is used for storing FRTB (Fundamental Review of the Trading Book) sensitivity data and unit tests. The format supports both Excel (.xlsx) and JSON (.json) representations.
+This document provides comprehensive documentation for the FNet Format (frtb.net Format) file format, which is used for storing FRTB (Fundamental Review of the Trading Book) sensitivity data and unit tests. The format supports Excel (.xlsx), JSON (.json), and SQLite (.db) representations.
 
 ---
 
@@ -20,6 +20,7 @@ This document provides comprehensive documentation for the FNet Format (frtb.net
 9. [CVA Risk - Basic Approach (CB_*)](#cva-risk---basic-approach-cb_)
 10. [Unit Test Tabs](#unit-test-tabs)
 11. [CRIF Mapping](#crif-common-risk-interchange-format-mapping)
+12. [Python API Reference](#python-api-reference)
 
 ---
 
@@ -29,9 +30,10 @@ FNet Format is a standardized format for storing:
 - **Sensitivity data** for FRTB capital calculations
 - **Unit test definitions** with benchmark results for validation
 
-The format can be stored in two equivalent representations:
+The format can be stored in three equivalent representations:
 - **Excel format** (.xlsx): Each RiskClass is a separate worksheet tab
 - **JSON format** (.json): Structured document with equivalent data
+- **SQLite format** (.db, .sqlite): Relational database with lazy loading support
 
 It closely adheres to the representation needed for calculation and specifies the record structures for different Risk Classes separately for clarity when reading and ease of use in code.
 
@@ -130,6 +132,151 @@ The Parameters sheet contains key-value pairs in two columns:
   }
 }
 ```
+
+### SQLite Format Structure
+
+The SQLite format stores data in a relational database with the following schema:
+
+#### Core Tables
+
+| Table Name | Description |
+|------------|-------------|
+| `parameters` | Key-value pairs for file metadata |
+| `risk_groups` | Unique (RiskGroup, RiskSubGroup) combinations |
+| `schema_info` | Schema version and format metadata |
+| `risk_class_registry` | Registry of sensitivity tables with row counts |
+| `test_registry` | Registry of test tables with row counts |
+
+#### Parameters Table
+
+```sql
+CREATE TABLE parameters (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+```
+
+Stores the same key-value pairs as the Excel Parameters sheet.
+
+#### Risk Groups Table
+
+```sql
+CREATE TABLE risk_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    risk_group TEXT NOT NULL,
+    risk_sub_group TEXT NOT NULL,
+    UNIQUE(risk_group, risk_sub_group)
+);
+```
+
+#### Schema Info Table
+
+```sql
+CREATE TABLE schema_info (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+```
+
+Contains:
+- `FNetFormatVersion` - The FNet Format version (e.g., "3.0")
+- `DatabaseSchemaVersion` - The database schema version (e.g., "1.0")
+
+#### Risk Class Registry
+
+```sql
+CREATE TABLE risk_class_registry (
+    risk_class TEXT PRIMARY KEY,
+    row_count INTEGER,
+    columns TEXT  -- JSON array of column names
+);
+```
+
+Tracks which sensitivity tables exist and their metadata. This enables lazy loading by providing row counts and column information without querying the data tables.
+
+#### Test Registry
+
+```sql
+CREATE TABLE test_registry (
+    test_type TEXT PRIMARY KEY,
+    row_count INTEGER,
+    columns TEXT  -- JSON array of column names
+);
+```
+
+#### Sensitivity Tables
+
+Each RiskClass has its own table named `sensitivities_<RiskClass>`:
+
+```sql
+-- Example: sensitivities_MS_IRDelta
+CREATE TABLE sensitivities_MS_IRDelta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sensitivity_id TEXT UNIQUE NOT NULL,
+    "RiskGroup" TEXT,
+    "RiskSubGroup" TEXT,
+    "RiskClass" TEXT,
+    "Bucket" TEXT,
+    "CurveType" TEXT,
+    "Curve" TEXT,
+    "Tenor" TEXT,
+    "Sensitivity" REAL
+);
+
+-- Indexes for efficient filtering
+CREATE INDEX idx_sensitivities_MS_IRDelta_risk_group
+    ON sensitivities_MS_IRDelta ("RiskGroup");
+CREATE INDEX idx_sensitivities_MS_IRDelta_risk_sub_group
+    ON sensitivities_MS_IRDelta ("RiskGroup", "RiskSubGroup");
+```
+
+Column types are mapped as follows:
+
+| FNetF Type | SQLite Type |
+|------------|-------------|
+| `str` | `TEXT` |
+| `object` | `TEXT` |
+| `float64` | `REAL` |
+| `int64` | `INTEGER` |
+| `bool` | `INTEGER` (0/1) |
+
+#### Test Tables
+
+Each test type has its own table named `tests_<TestType>`:
+
+```sql
+-- Example: tests_CapitalTests
+CREATE TABLE tests_CapitalTests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_id TEXT UNIQUE NOT NULL,
+    risk_group TEXT,
+    risk_sub_group TEXT,
+    risk_class TEXT,
+    description TEXT,
+    sensitivity_ids TEXT,
+    "Benchmark_SbAlt_Medium" REAL,
+    "Benchmark_SbAlt_Low" REAL,
+    "Benchmark_SbAlt_High" REAL,
+    "Benchmark_SumSb" REAL,
+    "Benchmark_Medium" REAL,
+    "Benchmark_Low" REAL,
+    "Benchmark_High" REAL
+);
+
+CREATE INDEX idx_tests_CapitalTests_risk_class
+    ON tests_CapitalTests (risk_class);
+```
+
+#### SQLite Benefits
+
+The SQLite format provides several advantages:
+
+1. **Lazy Loading** - Query only the data you need without loading the entire file
+2. **Efficient Filtering** - Use SQL WHERE clauses to filter by RiskGroup, RiskSubGroup, or Sensitivity ID
+3. **Pagination** - Use LIMIT and OFFSET for processing large datasets in chunks
+4. **Concurrent Access** - Multiple readers can access the database simultaneously
+5. **Compact Storage** - Binary format is often smaller than Excel or JSON
+6. **Fast Metadata Queries** - Registry tables provide counts and schema without scanning data
 
 ---
 
@@ -927,28 +1074,46 @@ The `Sensitivity IDs` field supports:
 
 ## File Conversion
 
-FNet Format files can be converted between Excel and JSON using:
+FNet Format files can be converted between Excel, JSON, and SQLite using:
 
 ```python
 from FNetF import FNetF
 
-# Load from Excel
+# Load from any format (auto-detected by extension)
 fnf = FNetF()
-fnf.load('input.xlsx')
+fnf.load('input.xlsx')   # Excel
+fnf.load('input.json')   # JSON
+fnf.load('input.db')     # SQLite
 
-# Save as JSON
-fnf.save('output.json')
-
-# Or vice versa
-fnf.load('input.json')
-fnf.save('output.xlsx')
+# Save to any format (auto-detected by extension)
+fnf.save('output.json')   # JSON
+fnf.save('output.xlsx')   # Excel
+fnf.save('output.db')     # SQLite
 ```
 
 Or using the command-line converter:
 
 ```bash
-python FNetFConverter.py input.xlsx -o output.json
-python FNetFConverter.py input.json -o output.xlsx
+# Basic conversions (output format from extension)
+python FNetFConverter.py input.xlsx -o output.json     # Excel → JSON
+python FNetFConverter.py input.xlsx -o output.db       # Excel → SQLite
+python FNetFConverter.py input.json -o output.xlsx     # JSON → Excel
+python FNetFConverter.py input.json -o output.db       # JSON → SQLite
+python FNetFConverter.py input.db -o output.xlsx       # SQLite → Excel
+python FNetFConverter.py input.db -o output.json       # SQLite → JSON
+
+# Default conversions (no -o flag)
+python FNetFConverter.py input.xlsx                    # Excel → JSON
+python FNetFConverter.py input.json                    # JSON → Excel
+python FNetFConverter.py input.db                      # SQLite → JSON
+
+# Validation
+python FNetFConverter.py input.xlsx -v                 # Validate Excel
+python FNetFConverter.py input.json -v                 # Validate JSON
+python FNetFConverter.py input.db -v                   # Validate SQLite
+
+# Comparison (any format combination)
+python FNetFConverter.py input.xlsx --compare input.db
 ```
 
 ---
@@ -1269,11 +1434,487 @@ crif_df = crif_class.FNetFtoCRIF('MS_IRDelta', fnf.getRiskClassData('MS_IRDelta'
 
 ---
 
+## Python API Reference
+
+This section documents the Python APIs for working with FNet Format files across all three storage formats.
+
+### FNetF Class
+
+The `FNetF` class (`FNetF.py`) is the primary interface for loading, manipulating, and saving FNet Format data.
+
+#### Constructor
+
+```python
+from FNetF import FNetF
+
+fnf = FNetF()
+```
+
+Creates an empty FNetF instance with default parameters.
+
+#### Loading Data
+
+```python
+fnf.load(filepath: str) -> pd.DataFrame | None
+```
+
+Loads FNet Format data from a file. The format is auto-detected based on file extension.
+
+**Parameters:**
+- `filepath` - Path to the file (.xlsx, .xls, .json, .db, or .sqlite)
+
+**Returns:**
+- DataFrame of test-sensitivity combinations (comboSensis), or None if no tests defined
+
+**Example:**
+```python
+fnf = FNetF()
+combo_sensis = fnf.load('data.xlsx')
+```
+
+#### Saving Data
+
+```python
+fnf.save(filename: str) -> None
+```
+
+Saves FNet Format data to a file. The format is auto-detected based on file extension.
+
+**Parameters:**
+- `filename` - Output file path (.xlsx, .xls, .json, .db, or .sqlite)
+
+**Example:**
+```python
+fnf.save('output.db')
+```
+
+#### Parameter Methods
+
+```python
+fnf.getParams() -> Dict[str, str]
+```
+Returns all parameters as a dictionary.
+
+```python
+fnf.getParam(param: str) -> str
+```
+Returns a specific parameter value.
+
+```python
+fnf.setParam(param: str, value: str) -> None
+```
+Sets a parameter value.
+
+**Example:**
+```python
+params = fnf.getParams()
+cob_date = fnf.getParam('COB Date')
+fnf.setParam('ReportingCcy', 'EUR')
+```
+
+#### Risk Class Methods
+
+```python
+fnf.getRiskClasses() -> List[str]
+```
+Returns list of RiskClasses present in the loaded data.
+
+```python
+fnf.getAllRiskClasses() -> List[str]
+```
+Returns list of all possible RiskClasses defined in the format specification.
+
+```python
+fnf.getRiskClassData(riskClass: str) -> pd.DataFrame
+```
+Returns the sensitivity DataFrame for a specific RiskClass.
+
+```python
+fnf.setRiskClassData(riskClass: str, sensis: pd.DataFrame) -> None
+```
+Sets the sensitivity data for a RiskClass.
+
+**Example:**
+```python
+risk_classes = fnf.getRiskClasses()  # ['MS_IRDelta', 'MS_CRDelta', ...]
+
+ir_delta = fnf.getRiskClassData('MS_IRDelta')
+print(ir_delta.columns)  # ['Sensitivity ID', 'RiskGroup', 'Bucket', ...]
+
+# Modify and save back
+ir_delta['Sensitivity'] *= 1.1
+fnf.setRiskClassData('MS_IRDelta', ir_delta)
+```
+
+#### Risk Group Methods
+
+```python
+fnf.getRiskGroups() -> List[Tuple[str, str]]
+```
+Returns list of (RiskGroup, RiskSubGroup) tuples present in the data.
+
+**Example:**
+```python
+groups = fnf.getRiskGroups()
+# [('UnitTests', 'Main'), ('Portfolio1', 'Desk_A'), ...]
+```
+
+#### Unit Test Methods
+
+```python
+fnf.getUnitTestSets() -> List[str]
+```
+Returns list of test set names (e.g., ['CapitalTests', 'BucketTests']).
+
+```python
+fnf.getUnitTests(testSet: str) -> pd.DataFrame
+```
+Returns all tests in a test set as a DataFrame.
+
+```python
+fnf.getUnitTest(testSet: str, testID: str) -> pd.DataFrame
+```
+Returns a single test row.
+
+```python
+fnf.getUnitTestSensis(testSet: str, testID: str) -> pd.DataFrame
+```
+Returns the sensitivity rows referenced by a test.
+
+```python
+fnf.setUnitTests(testType: str, tests: pd.DataFrame) -> None
+```
+Sets the test data for a test type.
+
+**Example:**
+```python
+test_sets = fnf.getUnitTestSets()  # ['CapitalTests', 'BucketTests', ...]
+
+capital_tests = fnf.getUnitTests('CapitalTests')
+single_test = fnf.getUnitTest('CapitalTests', 'MS_IR_000000')
+test_sensis = fnf.getUnitTestSensis('CapitalTests', 'MS_IR_000000')
+```
+
+---
+
+### FNetFDatabase Class
+
+The `FNetFDatabase` class (`FNetFDatabase.py`) provides direct SQLite database access with lazy loading support.
+
+#### Constructor
+
+```python
+from FNetFDatabase import FNetFDatabase
+
+db = FNetFDatabase(db_path: str = None)
+```
+
+**Parameters:**
+- `db_path` - Path to the SQLite database file (optional, can be set later)
+
+#### Context Manager (Recommended for Lazy Loading)
+
+```python
+with FNetFDatabase('data.db') as db:
+    # Database connection stays open for efficient queries
+    risk_classes = db.get_risk_classes()
+    for rc in risk_classes:
+        df = db.get_sensitivity_data(rc, limit=100)
+        # Process in batches...
+```
+
+The context manager opens a persistent connection for the duration of the block, enabling efficient repeated queries.
+
+#### Writing Data
+
+```python
+db.write_from_fnetf(fnetf: FNetF, db_path: str = None) -> None
+```
+Writes an FNetF instance to a SQLite database.
+
+```python
+db.create_database(db_path: str = None) -> None
+```
+Creates an empty database with the FNetF schema.
+
+**Example:**
+```python
+from FNetF import FNetF
+from FNetFDatabase import FNetFDatabase
+
+fnf = FNetF()
+fnf.load('data.xlsx')
+
+db = FNetFDatabase()
+db.write_from_fnetf(fnf, 'data.db')
+```
+
+#### Reading Data (Full Load)
+
+```python
+db.load_to_fnetf(fnetf: FNetF, db_path: str = None) -> None
+```
+Loads all data from a SQLite database into an FNetF instance.
+
+**Example:**
+```python
+fnf = FNetF()
+db = FNetFDatabase()
+db.load_to_fnetf(fnf, 'data.db')
+```
+
+#### Lazy Loading Methods
+
+These methods allow querying data without loading the entire database into memory.
+
+```python
+db.get_parameters() -> Dict[str, str]
+```
+Returns all parameters.
+
+```python
+db.get_risk_classes() -> List[str]
+```
+Returns list of RiskClasses in the database.
+
+```python
+db.get_risk_class_info(risk_class: str) -> Dict
+```
+Returns metadata about a RiskClass without loading the data.
+
+**Returns:** `{'row_count': int, 'columns': List[str]}`
+
+```python
+db.get_risk_groups() -> List[Tuple[str, str]]
+```
+Returns all (RiskGroup, RiskSubGroup) pairs.
+
+```python
+db.get_sensitivity_data(
+    risk_class: str,
+    risk_group: str = None,
+    risk_sub_group: str = None,
+    sensitivity_ids: List[str] = None,
+    limit: int = None,
+    offset: int = None
+) -> pd.DataFrame
+```
+Returns sensitivity data with optional filtering and pagination.
+
+**Parameters:**
+- `risk_class` - The RiskClass to query
+- `risk_group` - Filter by RiskGroup (optional)
+- `risk_sub_group` - Filter by RiskSubGroup (requires risk_group)
+- `sensitivity_ids` - List of specific Sensitivity IDs to fetch (optional)
+- `limit` - Maximum rows to return (optional)
+- `offset` - Rows to skip (optional)
+
+```python
+db.get_sensitivity_count(
+    risk_class: str,
+    risk_group: str = None,
+    risk_sub_group: str = None
+) -> int
+```
+Returns count of sensitivities matching the filter criteria.
+
+```python
+db.get_test_types() -> List[str]
+```
+Returns list of test types in the database.
+
+```python
+db.get_test_data(
+    test_type: str,
+    test_id: str = None,
+    risk_class: str = None
+) -> pd.DataFrame
+```
+Returns test data with optional filtering.
+
+**Example - Lazy Loading Workflow:**
+```python
+from FNetFDatabase import FNetFDatabase
+
+with FNetFDatabase('large_portfolio.db') as db:
+    # Quick metadata queries (no data loaded)
+    params = db.get_parameters()
+    risk_classes = db.get_risk_classes()
+
+    for rc in risk_classes:
+        info = db.get_risk_class_info(rc)
+        print(f"{rc}: {info['row_count']} rows")
+
+    # Filter by RiskGroup
+    portfolio_a = db.get_sensitivity_data(
+        'MS_IRDelta',
+        risk_group='Portfolio_A'
+    )
+
+    # Paginated access for large datasets
+    total = db.get_sensitivity_count('MS_CRDelta')
+    batch_size = 1000
+    for offset in range(0, total, batch_size):
+        batch = db.get_sensitivity_data(
+            'MS_CRDelta',
+            limit=batch_size,
+            offset=offset
+        )
+        # Process batch...
+
+    # Fetch specific sensitivities
+    specific = db.get_sensitivity_data(
+        'MS_EQDelta',
+        sensitivity_ids=['MS_EQD_00001', 'MS_EQD_00002', 'MS_EQD_00003']
+    )
+```
+
+#### Convenience Functions
+
+```python
+from FNetFDatabase import fnetf_to_sqlite, sqlite_to_fnetf
+
+# Write FNetF to SQLite
+fnetf_to_sqlite(fnf, 'output.db')
+
+# Load SQLite to FNetF
+fnf = FNetF()
+sqlite_to_fnetf('input.db', fnf)
+```
+
+---
+
+### FNetFConverter Class
+
+The `FNetFConverter` class (`FNetFConverter.py`) provides format conversion and validation utilities.
+
+#### Constructor
+
+```python
+from FNetFConverter import FNetFConverter
+
+converter = FNetFConverter()
+```
+
+#### Conversion Methods
+
+```python
+converter.convert(
+    input_path: str,
+    output_path: str,
+    pretty: bool = True,
+    indent: int = 2
+) -> str
+```
+Generic conversion between any two formats (auto-detected by extension).
+
+```python
+converter.excel_to_json(excel_path: str, json_path: str = None, ...) -> Dict
+converter.json_to_excel(json_path: str, excel_path: str = None) -> str
+converter.excel_to_sqlite(excel_path: str, sqlite_path: str = None) -> str
+converter.json_to_sqlite(json_path: str, sqlite_path: str = None) -> str
+converter.sqlite_to_excel(sqlite_path: str, excel_path: str = None) -> str
+converter.sqlite_to_json(sqlite_path: str, json_path: str = None, ...) -> Dict
+converter.to_sqlite(input_path: str, sqlite_path: str = None) -> str
+```
+
+**Example:**
+```python
+converter = FNetFConverter()
+
+# Convert Excel to SQLite
+converter.excel_to_sqlite('data.xlsx', 'data.db')
+
+# Generic conversion
+converter.convert('data.xlsx', 'data.json')
+converter.convert('data.db', 'data.xlsx')
+```
+
+#### Validation Methods
+
+```python
+converter.validate(file_path: str) -> Tuple[bool, List[str]]
+```
+Validates any FNet Format file (format auto-detected).
+
+```python
+converter.validate_excel(excel_path: str) -> Tuple[bool, List[str]]
+converter.validate_json(json_path: str) -> Tuple[bool, List[str]]
+converter.validate_sqlite(sqlite_path: str) -> Tuple[bool, List[str]]
+```
+
+**Returns:** Tuple of (is_valid, list_of_errors)
+
+**Example:**
+```python
+is_valid, errors = converter.validate('data.db')
+if not is_valid:
+    for error in errors:
+        print(f"Error: {error}")
+```
+
+#### Comparison Method
+
+```python
+converter.compare(file1: str, file2: str) -> Tuple[bool, List[str]]
+```
+Compares two FNet Format files (any format combination).
+
+**Returns:** Tuple of (are_equal, list_of_differences)
+
+**Example:**
+```python
+are_equal, diffs = converter.compare('original.xlsx', 'converted.db')
+if not are_equal:
+    for diff in diffs:
+        print(f"Difference: {diff}")
+```
+
+---
+
+### Command-Line Interface
+
+The `FNetFConverter.py` module can be run as a command-line tool:
+
+```
+usage: FNetFConverter.py [-h] [-o OUTPUT] [-v] [--compare FILE2] [--compact] input
+
+Convert FNetF files between Excel, JSON, and SQLite formats
+
+positional arguments:
+  input                Input file path (.xlsx, .json, .db, or .sqlite)
+
+options:
+  -h, --help           show this help message and exit
+  -o, --output OUTPUT  Output file path (format determined by extension)
+  -v, --validate       Validate file without converting
+  --compare FILE2      Compare input file with another file
+  --compact            Use compact JSON format (no pretty printing)
+```
+
+**Examples:**
+```bash
+# Convert Excel to JSON (default output)
+python FNetFConverter.py portfolio.xlsx
+
+# Convert to specific format
+python FNetFConverter.py portfolio.xlsx -o portfolio.db
+
+# Validate a file
+python FNetFConverter.py portfolio.db -v
+
+# Compare two files
+python FNetFConverter.py original.xlsx --compare converted.db
+```
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 3.0 | 2024 | Current version with JSON support |
+| 3.0 | 2024 | Initial version with Excel and JSON support |
+| 3.1 | 2025 | Added SQLite format with lazy loading support |
 
 ---
 

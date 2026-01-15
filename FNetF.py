@@ -446,7 +446,7 @@ class FNetF():
 
     def load(self, filepath):
         """
-        Load FNetF data from either Excel (.xlsx) or JSON (.json) file.
+        Load FNetF data from Excel (.xlsx), JSON (.json), or SQLite (.db) file.
 
         The format is auto-detected based on file extension.
         """
@@ -465,8 +465,10 @@ class FNetF():
             return self._load_json(filepath)
         elif filepath_lower.endswith('.xlsx') or filepath_lower.endswith('.xls'):
             return self._load_excel(filepath)
+        elif filepath_lower.endswith('.db') or filepath_lower.endswith('.sqlite'):
+            return self._load_sqlite(filepath)
         else:
-            raise ValueError(f"Unsupported file format. Use .xlsx or .json")
+            raise ValueError(f"Unsupported file format. Use .xlsx, .json, .db, or .sqlite")
 
     def _load_excel(self, filepath):
         """Load FNetF data from Excel file."""
@@ -687,6 +689,62 @@ class FNetF():
 
         return comboSensis
 
+    def _load_sqlite(self, filepath):
+        """Load FNetF data from SQLite database file."""
+        from FNetFDatabase import FNetFDatabase
+
+        db = FNetFDatabase(filepath)
+        db.load_to_fnetf(self, filepath)
+
+        self._filename = filepath
+        self.setParam('FileName', filepath)
+
+        # Build comboSensis the same way as other loaders
+        if not self._sensis:
+            return None
+
+        sensis = pd.concat(
+            [x[['Sensitivity ID', 'RiskClass']] for x in self._sensis.values()],
+            axis=0
+        ).set_index('Sensitivity ID', drop=False)
+
+        comboSensis = pd.DataFrame()
+
+        for testSet, testSetData in self._tests.items():
+            for combo, cRow in testSetData.set_index('Test ID').iterrows():
+                getAll = False
+                newRows = []
+
+                for s in cRow['Sensitivity IDs'].replace(', ', ',').split(','):
+                    if s.startswith('ALL '):
+                        getAll = True
+                        sensiSubList = sensis[
+                            [ss.startswith(s[4:]) for ss in sensis['Sensitivity ID']]
+                        ]['Sensitivity ID'].unique()
+                    elif getAll:
+                        sensiSubList = sensis[
+                            [ss.startswith(s) for ss in sensis['Sensitivity ID']]
+                        ]['Sensitivity ID'].unique()
+                    else:
+                        if s in sensis.index:
+                            sensiSubList = [s]
+                        else:
+                            print(f"Missing Sensitivity ID: {s} in Test {combo}")
+                            continue
+
+                    for ss in sensiSubList:
+                        newRows.append([testSet, combo, sensis.at[ss, 'RiskClass'], ss])
+
+                comboSensis = pd.concat(
+                    [comboSensis, pd.DataFrame(newRows, columns=['Test Set', 'Test ID', 'RiskClass', 'Sensitivity ID'])],
+                    axis=0
+                )
+
+        if not comboSensis.empty:
+            comboSensis.set_index(['Test Set', 'Test ID'], inplace=True)
+
+        return comboSensis
+
     def getParams(self):
         if not self._params:
             raise ValueError("No params data loaded")
@@ -798,7 +856,7 @@ class FNetF():
 
     def save(self, filename):
         """
-        Save FNetF data to either Excel (.xlsx) or JSON (.json) file.
+        Save FNetF data to Excel (.xlsx), JSON (.json), or SQLite (.db) file.
 
         The format is auto-detected based on file extension.
         """
@@ -807,8 +865,17 @@ class FNetF():
             self._save_json(filename)
         elif filename_lower.endswith('.xlsx') or filename_lower.endswith('.xls'):
             self._save_excel(filename)
+        elif filename_lower.endswith('.db') or filename_lower.endswith('.sqlite'):
+            self._save_sqlite(filename)
         else:
-            raise ValueError(f"Unsupported file format. Use .xlsx or .json")
+            raise ValueError(f"Unsupported file format. Use .xlsx, .json, .db, or .sqlite")
+
+    def _save_sqlite(self, filename):
+        """Save FNetF data to SQLite database file."""
+        from FNetFDatabase import FNetFDatabase
+
+        db = FNetFDatabase()
+        db.write_from_fnetf(self, filename)
 
     def _save_excel(self, filename):
         """Save FNetF data to Excel file."""

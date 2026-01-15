@@ -1,5 +1,5 @@
 """
-Converter for FNetF (frtb.net Format) files between Excel and JSON formats.
+Converter for FNetF (frtb.net Format) files between Excel, JSON, and SQLite formats.
 
 Provides bidirectional conversion with validation and a command-line interface.
 
@@ -51,9 +51,14 @@ class _FNetFJSONEncoder(json.JSONEncoder):
 
 class FNetFConverter:
     """
-    Converts FNetF files between Excel and JSON formats.
+    Converts FNetF files between Excel, JSON, and SQLite formats.
 
-    The JSON format is self-documenting with the following structure:
+    Supported formats:
+    - Excel (.xlsx, .xls) - Spreadsheet format with multiple worksheets
+    - JSON (.json) - Self-documenting hierarchical format
+    - SQLite (.db, .sqlite) - Database format with lazy loading support
+
+    The JSON format structure:
     {
         "_copyright": { "value": [...], "type": "text", ... },
         "_parameters": { "FNetFormatVersion": "3.0", ... },
@@ -67,6 +72,8 @@ class FNetFConverter:
         }
     }
     """
+
+    SUPPORTED_EXTENSIONS = {'.xlsx', '.xls', '.json', '.db', '.sqlite'}
 
     def __init__(self):
         self._name = type(self).__name__
@@ -164,6 +171,216 @@ class FNetFConverter:
 
         print(f"✓ Conversion complete: {excel_path}")
         return str(excel_path)
+
+    def to_sqlite(self, input_path: str, sqlite_path: str = None) -> str:
+        """
+        Convert an FNetF file (Excel or JSON) to SQLite format.
+
+        Args:
+            input_path: Path to the input file (Excel or JSON)
+            sqlite_path: Path to save SQLite file (optional, defaults to same name with .db)
+
+        Returns:
+            Path to the created SQLite file
+
+        Raises:
+            FileNotFoundError: If input file doesn't exist
+            ValueError: If input file is invalid or unsupported format
+        """
+        input_path = Path(input_path)
+        if not input_path.exists():
+            raise FileNotFoundError(f"Input file not found: {input_path}")
+
+        if sqlite_path is None:
+            sqlite_path = input_path.with_suffix('.db')
+        else:
+            sqlite_path = Path(sqlite_path)
+
+        input_ext = input_path.suffix.lower()
+        if input_ext not in ('.xlsx', '.xls', '.json'):
+            raise ValueError(f"Unsupported input format for SQLite conversion: {input_ext}")
+
+        print(f"Converting {input_ext.upper()[1:]} → SQLite: {input_path} → {sqlite_path}")
+
+        # Load using FNetF class
+        fnf = FNetF()
+        try:
+            fnf.load(str(input_path))
+        except Exception as e:
+            raise ValueError(f"Failed to load input file: {e}")
+
+        # Save to SQLite
+        fnf.save(str(sqlite_path))
+
+        print(f"✓ Conversion complete: {sqlite_path}")
+        return str(sqlite_path)
+
+    def excel_to_sqlite(self, excel_path: str, sqlite_path: str = None) -> str:
+        """
+        Convert an FNetF Excel file to SQLite format.
+
+        Args:
+            excel_path: Path to the Excel file
+            sqlite_path: Path to save SQLite file (optional)
+
+        Returns:
+            Path to the created SQLite file
+        """
+        return self.to_sqlite(excel_path, sqlite_path)
+
+    def json_to_sqlite(self, json_path: str, sqlite_path: str = None) -> str:
+        """
+        Convert an FNetF JSON file to SQLite format.
+
+        Args:
+            json_path: Path to the JSON file
+            sqlite_path: Path to save SQLite file (optional)
+
+        Returns:
+            Path to the created SQLite file
+        """
+        return self.to_sqlite(json_path, sqlite_path)
+
+    def sqlite_to_excel(self, sqlite_path: str, excel_path: str = None) -> str:
+        """
+        Convert an FNetF SQLite file to Excel format.
+
+        Args:
+            sqlite_path: Path to the SQLite file
+            excel_path: Path to save Excel file (optional)
+
+        Returns:
+            Path to the created Excel file
+        """
+        sqlite_path = Path(sqlite_path)
+        if not sqlite_path.exists():
+            raise FileNotFoundError(f"SQLite file not found: {sqlite_path}")
+
+        if excel_path is None:
+            excel_path = sqlite_path.with_suffix('.xlsx')
+        else:
+            excel_path = Path(excel_path)
+
+        print(f"Converting SQLite → Excel: {sqlite_path} → {excel_path}")
+
+        # Load using FNetF class
+        fnf = FNetF()
+        try:
+            fnf.load(str(sqlite_path))
+        except Exception as e:
+            raise ValueError(f"Failed to load SQLite file: {e}")
+
+        # Save to Excel
+        fnf.save(str(excel_path))
+
+        print(f"✓ Conversion complete: {excel_path}")
+        return str(excel_path)
+
+    def sqlite_to_json(self, sqlite_path: str, json_path: str = None,
+                       pretty: bool = True, indent: int = 2) -> Dict[str, Any]:
+        """
+        Convert an FNetF SQLite file to JSON format.
+
+        Args:
+            sqlite_path: Path to the SQLite file
+            json_path: Path to save JSON file (optional)
+            pretty: Whether to pretty-print the JSON
+            indent: Indentation level for pretty printing
+
+        Returns:
+            Dictionary containing the converted data
+        """
+        sqlite_path = Path(sqlite_path)
+        if not sqlite_path.exists():
+            raise FileNotFoundError(f"SQLite file not found: {sqlite_path}")
+
+        if json_path is None:
+            json_path = sqlite_path.with_suffix('.json')
+        else:
+            json_path = Path(json_path)
+
+        print(f"Converting SQLite → JSON: {sqlite_path} → {json_path}")
+
+        # Load using FNetF class
+        fnf = FNetF()
+        try:
+            fnf.load(str(sqlite_path))
+        except Exception as e:
+            raise ValueError(f"Failed to load SQLite file: {e}")
+
+        # Build JSON structure
+        data = self._fnf_to_dict(fnf)
+
+        # Save to JSON
+        with open(json_path, 'w') as f:
+            if pretty:
+                json.dump(data, f, indent=indent, cls=_FNetFJSONEncoder)
+            else:
+                json.dump(data, f, cls=_FNetFJSONEncoder)
+
+        print(f"✓ Conversion complete: {json_path}")
+        return data
+
+    def convert(self, input_path: str, output_path: str = None,
+                pretty: bool = True, indent: int = 2) -> str:
+        """
+        Convert an FNetF file to another format (auto-detected by extension).
+
+        Args:
+            input_path: Path to the input file
+            output_path: Path to save output file (format determined by extension)
+            pretty: Whether to pretty-print JSON output
+            indent: Indentation level for JSON pretty printing
+
+        Returns:
+            Path to the created output file
+
+        Raises:
+            FileNotFoundError: If input file doesn't exist
+            ValueError: If formats are unsupported or the same
+        """
+        input_path = Path(input_path)
+        if not input_path.exists():
+            raise FileNotFoundError(f"Input file not found: {input_path}")
+
+        input_ext = input_path.suffix.lower()
+        if input_ext not in self.SUPPORTED_EXTENSIONS:
+            raise ValueError(f"Unsupported input format: {input_ext}")
+
+        if output_path is None:
+            raise ValueError("Output path is required for generic convert()")
+
+        output_path = Path(output_path)
+        output_ext = output_path.suffix.lower()
+        if output_ext not in self.SUPPORTED_EXTENSIONS:
+            raise ValueError(f"Unsupported output format: {output_ext}")
+
+        # Normalize extensions
+        if input_ext == '.xls':
+            input_ext = '.xlsx'
+        if output_ext == '.sqlite':
+            output_ext = '.db'
+
+        if input_ext == output_ext:
+            raise ValueError("Input and output formats are the same")
+
+        # Route to appropriate conversion method
+        if input_ext == '.xlsx' and output_ext == '.json':
+            self.excel_to_json(str(input_path), str(output_path), pretty, indent)
+        elif input_ext == '.xlsx' and output_ext == '.db':
+            self.excel_to_sqlite(str(input_path), str(output_path))
+        elif input_ext == '.json' and output_ext == '.xlsx':
+            self.json_to_excel(str(input_path), str(output_path))
+        elif input_ext == '.json' and output_ext == '.db':
+            self.json_to_sqlite(str(input_path), str(output_path))
+        elif input_ext == '.db' and output_ext == '.xlsx':
+            self.sqlite_to_excel(str(input_path), str(output_path))
+        elif input_ext == '.db' and output_ext == '.json':
+            self.sqlite_to_json(str(input_path), str(output_path), pretty, indent)
+        else:
+            raise ValueError(f"Conversion from {input_ext} to {output_ext} not supported")
+
+        return str(output_path)
 
     def _fnf_to_dict(self, fnf: FNetF) -> Dict[str, Any]:
         """Convert FNetF object to dictionary structure."""
@@ -406,9 +623,76 @@ class FNetFConverter:
 
         return len(errors) == 0, errors
 
+    def validate_sqlite(self, sqlite_path: str) -> Tuple[bool, List[str]]:
+        """
+        Validate an FNetF SQLite file.
+
+        Args:
+            sqlite_path: Path to SQLite file
+
+        Returns:
+            Tuple of (is_valid: bool, errors: List[str])
+        """
+        sqlite_path = Path(sqlite_path)
+        errors = []
+
+        if not sqlite_path.exists():
+            return False, [f"File not found: {sqlite_path}"]
+
+        try:
+            from FNetFDatabase import FNetFDatabase
+
+            db = FNetFDatabase(str(sqlite_path))
+
+            # Check parameters
+            params = db.get_parameters()
+            version = params.get('FNetFormatVersion')
+            if version != FNetFormatVersion:
+                errors.append(f"Incompatible FNetFormatVersion: expected {FNetFormatVersion}, got {version}")
+
+            # Check for risk class data
+            risk_classes = db.get_risk_classes()
+            if not risk_classes:
+                errors.append("No sensitivity data found")
+
+            # Verify tables are readable
+            for rc in risk_classes[:3]:  # Check first few
+                info = db.get_risk_class_info(rc)
+                if info is None:
+                    errors.append(f"Risk class {rc} registry entry missing")
+                elif info['row_count'] == 0:
+                    errors.append(f"Risk class {rc} has no data")
+
+        except Exception as e:
+            errors.append(f"Failed to load SQLite file: {e}")
+
+        return len(errors) == 0, errors
+
+    def validate(self, file_path: str) -> Tuple[bool, List[str]]:
+        """
+        Validate an FNetF file (auto-detect format).
+
+        Args:
+            file_path: Path to FNetF file (Excel, JSON, or SQLite)
+
+        Returns:
+            Tuple of (is_valid: bool, errors: List[str])
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix.lower()
+
+        if ext == '.json':
+            return self.validate_json(str(file_path))
+        elif ext in ('.xlsx', '.xls'):
+            return self.validate_excel(str(file_path))
+        elif ext in ('.db', '.sqlite'):
+            return self.validate_sqlite(str(file_path))
+        else:
+            return False, [f"Unsupported file format: {ext}"]
+
     def compare(self, file1: str, file2: str) -> Tuple[bool, List[str]]:
         """
-        Compare two FNetF files (Excel or JSON).
+        Compare two FNetF files (Excel, JSON, or SQLite).
 
         Args:
             file1: Path to first file
@@ -468,10 +752,21 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Convert FNetF files between Excel and JSON formats'
+        description='Convert FNetF files between Excel, JSON, and SQLite formats',
+        epilog='''
+Examples:
+  %(prog)s input.xlsx                     # Convert Excel to JSON
+  %(prog)s input.xlsx -o output.db        # Convert Excel to SQLite
+  %(prog)s input.json -o output.xlsx      # Convert JSON to Excel
+  %(prog)s input.db -o output.json        # Convert SQLite to JSON
+  %(prog)s input.xlsx -v                  # Validate Excel file
+  %(prog)s input.xlsx --compare input.db  # Compare two files
+        '''
     )
-    parser.add_argument('input', help='Input file path')
-    parser.add_argument('-o', '--output', help='Output file path (optional)')
+    parser.add_argument('input', help='Input file path (.xlsx, .json, .db, or .sqlite)')
+    parser.add_argument('-o', '--output',
+                        help='Output file path (format determined by extension). '
+                             'If not specified, converts to default format.')
     parser.add_argument('-v', '--validate', action='store_true',
                         help='Validate file without converting')
     parser.add_argument('--compare', metavar='FILE2',
@@ -488,6 +783,12 @@ def main():
         print(f"Error: File not found: {input_path}")
         return 1
 
+    input_ext = input_path.suffix.lower()
+    if input_ext not in converter.SUPPORTED_EXTENSIONS:
+        print(f"Error: Unsupported file format: {input_ext}")
+        print("Supported formats: .json, .xlsx, .xls, .db, .sqlite")
+        return 1
+
     # Compare mode
     if args.compare:
         print(f"Comparing: {args.input} vs {args.compare}")
@@ -501,57 +802,55 @@ def main():
                 print(f"  - {diff}")
             return 1
 
-    # Determine format from extension
-    if input_path.suffix.lower() == '.json':
-        # JSON input
-        if args.validate:
-            is_valid, errors = converter.validate_json(str(input_path))
-            if is_valid:
-                print(f"✓ Valid FNetF JSON: {input_path}")
-                return 0
-            else:
-                print(f"✗ Invalid FNetF JSON: {input_path}")
-                for error in errors:
-                    print(f"  - {error}")
-                return 1
-        else:
-            # Convert to Excel
-            try:
-                converter.json_to_excel(str(input_path), args.output)
-                return 0
-            except Exception as e:
-                print(f"Error: {e}")
-                return 1
+    # Validate mode
+    if args.validate:
+        is_valid, errors = converter.validate(str(input_path))
+        format_name = {
+            '.json': 'JSON',
+            '.xlsx': 'Excel',
+            '.xls': 'Excel',
+            '.db': 'SQLite',
+            '.sqlite': 'SQLite'
+        }.get(input_ext, 'Unknown')
 
-    elif input_path.suffix.lower() in ('.xlsx', '.xls'):
-        # Excel input
-        if args.validate:
-            is_valid, errors = converter.validate_excel(str(input_path))
-            if is_valid:
-                print(f"✓ Valid FNetF Excel: {input_path}")
-                return 0
-            else:
-                print(f"✗ Invalid FNetF Excel: {input_path}")
-                for error in errors:
-                    print(f"  - {error}")
-                return 1
+        if is_valid:
+            print(f"✓ Valid FNetF {format_name}: {input_path}")
+            return 0
         else:
-            # Convert to JSON
-            try:
-                converter.excel_to_json(
-                    str(input_path),
-                    args.output,
-                    pretty=not args.compact
-                )
-                return 0
-            except Exception as e:
-                print(f"Error: {e}")
-                return 1
+            print(f"✗ Invalid FNetF {format_name}: {input_path}")
+            for error in errors:
+                print(f"  - {error}")
+            return 1
 
+    # Conversion mode
+    if args.output:
+        # Explicit output format
+        try:
+            converter.convert(
+                str(input_path),
+                args.output,
+                pretty=not args.compact
+            )
+            return 0
+        except Exception as e:
+            print(f"Error: {e}")
+            return 1
     else:
-        print(f"Error: Unsupported file format: {input_path.suffix}")
-        print("Supported formats: .json, .xlsx, .xls")
-        return 1
+        # Default conversion based on input format
+        try:
+            if input_ext == '.json':
+                # JSON → Excel (default)
+                converter.json_to_excel(str(input_path))
+            elif input_ext in ('.xlsx', '.xls'):
+                # Excel → JSON (default)
+                converter.excel_to_json(str(input_path), pretty=not args.compact)
+            elif input_ext in ('.db', '.sqlite'):
+                # SQLite → JSON (default)
+                converter.sqlite_to_json(str(input_path), pretty=not args.compact)
+            return 0
+        except Exception as e:
+            print(f"Error: {e}")
+            return 1
 
 
 if __name__ == '__main__':
