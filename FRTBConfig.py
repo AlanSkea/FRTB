@@ -21,7 +21,6 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
-Copyright © 2024 by Alan Skea
 """
 
 import os
@@ -62,6 +61,10 @@ class FRTBConfig(object):
 
     _configFileJSON = 'FRTBConfig_{}.json'
     _configFileExcel = 'FRTBConfig_{}.xlsx'
+
+    # Class-level cache for loaded configurations to avoid redundant file I/O
+    # and repeated computation of Vega risk weights and Rho matrices
+    _config_cache = {}
 
     # Type mapping for JSON serialization/deserialization
     _TYPE_MAP = {
@@ -396,9 +399,15 @@ class FRTBConfig(object):
     def __init__(self, regulator):
         self._name = type(self).__name__
         self._regulator = regulator
-        self._config = self.readConfig()
-        self._computeVegaRiskWeights()
-        self._computeRho()
+
+        # Use cached config if available to avoid redundant file I/O and computations
+        if regulator in FRTBConfig._config_cache:
+            self._config = FRTBConfig._config_cache[regulator]
+        else:
+            self._config = self.readConfig()
+            self._computeVegaRiskWeights()
+            self._computeRho()
+            FRTBConfig._config_cache[regulator] = self._config
 
 
     def _computeVegaRiskWeights(self):
