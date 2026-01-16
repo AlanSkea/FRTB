@@ -24,7 +24,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import sqlite3
 import pandas as pd
 import os
-import json
 from contextlib import contextmanager
 
 from FNetF import FNetFieldType, FNetFormatVersion
@@ -164,23 +163,6 @@ class FNetFDatabase:
             )
         ''')
 
-        # Risk class registry - tracks which risk class tables exist
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS risk_class_registry (
-                risk_class TEXT PRIMARY KEY,
-                row_count INTEGER,
-                columns TEXT
-            )
-        ''')
-
-        # Test registry - tracks which test tables exist
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS test_registry (
-                test_type TEXT PRIMARY KEY,
-                row_count INTEGER,
-                columns TEXT
-            )
-        ''')
 
         # Store schema version
         cursor.execute('''
@@ -204,9 +186,8 @@ class FNetFDatabase:
         """
         table_name = self._get_sensitivity_table_name(risk_class)
 
-        # Build column definitions
-        columns = ['id INTEGER PRIMARY KEY AUTOINCREMENT']
-        columns.append('sensitivity_id TEXT UNIQUE NOT NULL')
+        # Build column definitions - sensitivity_id is the natural primary key
+        columns = ['sensitivity_id TEXT PRIMARY KEY']
 
         # Add standard FNetFieldType columns
         if risk_class in FNetFieldType:
@@ -225,9 +206,9 @@ class FNetFDatabase:
         cursor.execute(f'DROP TABLE IF EXISTS "{table_name}"')
         cursor.execute(f'CREATE TABLE "{table_name}" ({", ".join(columns)})')
 
-        # Create indexes for common query patterns
-        cursor.execute(f'CREATE INDEX IF NOT EXISTS "idx_{table_name}_risk_group" ON "{table_name}" ("RiskGroup")')
-        cursor.execute(f'CREATE INDEX IF NOT EXISTS "idx_{table_name}_risk_sub_group" ON "{table_name}" ("RiskGroup", "RiskSubGroup")')
+        # Create composite index for common query patterns
+        # A (RiskGroup, RiskSubGroup) index also satisfies RiskGroup-only queries
+        cursor.execute(f'CREATE INDEX IF NOT EXISTS "idx_{table_name}_risk_group" ON "{table_name}" ("RiskGroup", "RiskSubGroup")')
 
         conn.commit()
 
@@ -243,8 +224,7 @@ class FNetFDatabase:
         table_name = self._get_test_table_name(test_type)
 
         columns = [
-            'id INTEGER PRIMARY KEY AUTOINCREMENT',
-            'test_id TEXT UNIQUE NOT NULL',
+            'test_id TEXT PRIMARY KEY',
             'risk_group TEXT',
             'risk_sub_group TEXT',
             'risk_class TEXT',
@@ -374,13 +354,6 @@ class FNetFDatabase:
                         values.append(val)
             cursor.execute(insert_sql, values)
 
-        # Register this risk class
-        columns_json = json.dumps(existing_cols)
-        cursor.execute(
-            'INSERT OR REPLACE INTO risk_class_registry (risk_class, row_count, columns) VALUES (?, ?, ?)',
-            (risk_class, len(df), columns_json)
-        )
-
         conn.commit()
 
     def _write_test_data(self, conn, test_type, df):
@@ -422,15 +395,6 @@ class FNetFDatabase:
                 else:
                     values.append(val)
             cursor.execute(insert_sql, values)
-
-        # Register this test type
-        all_cols = standard_cols + benchmark_cols
-        existing_cols = [col for col in all_cols if col in df.columns]
-        columns_json = json.dumps(existing_cols)
-        cursor.execute(
-            'INSERT OR REPLACE INTO test_registry (test_type, row_count, columns) VALUES (?, ?, ?)',
-            (test_type, len(df), columns_json)
-        )
 
         conn.commit()
 
@@ -504,16 +468,41 @@ class FNetFDatabase:
         return {row['key']: row['value'] for row in cursor.fetchall()}
 
     def _get_risk_classes(self, conn):
-        """Get list of risk classes stored in the database."""
+        """Get list of risk classes stored in the database by querying sqlite_master."""
         cursor = conn.cursor()
-        cursor.execute('SELECT risk_class FROM risk_class_registry')
-        return [row['risk_class'] for row in cursor.fetchall()]
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name LIKE 'sensitivities_%'
+            ORDER BY name
+        """)
+        # Extract risk class name from table name, reversing the _get_table_name transformation
+        risk_classes = []
+        for row in cursor.fetchall():
+            table_name = row['name']
+            # Remove 'sensitivities_' prefix
+            risk_class = table_name[14:]  # len('sensitivities_') = 14
+            # Reverse transformations: '_' back to '-', 'plus' back to '+'
+            # Note: This is a simple reversal; ambiguous cases would need the original name stored
+            risk_class = risk_class.replace('plus', '+')
+            risk_classes.append(risk_class)
+        return risk_classes
 
     def _get_test_types(self, conn):
-        """Get list of test types stored in the database."""
+        """Get list of test types stored in the database by querying sqlite_master."""
         cursor = conn.cursor()
-        cursor.execute('SELECT test_type FROM test_registry')
-        return [row['test_type'] for row in cursor.fetchall()]
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name LIKE 'tests_%'
+            ORDER BY name
+        """)
+        # Extract test type name from table name
+        test_types = []
+        for row in cursor.fetchall():
+            table_name = row['name']
+            # Remove 'tests_' prefix
+            test_type = table_name[6:]  # len('tests_') = 6
+            test_types.append(test_type)
+        return test_types
 
     def _read_sensitivity_data(self, conn, risk_class, where_clause=None, params=None):
         """
@@ -530,20 +519,21 @@ class FNetFDatabase:
         """
         table_name = self._get_sensitivity_table_name(risk_class)
 
-        # Get column info
+        # Get column info from table schema
         cursor = conn.cursor()
-        cursor.execute('SELECT columns FROM risk_class_registry WHERE risk_class = ?', (risk_class,))
-        row = cursor.fetchone()
-        if not row:
+        cursor.execute(f'PRAGMA table_info("{table_name}")')
+        table_info = cursor.fetchall()
+        if not table_info:
             return None
 
-        columns = json.loads(row['columns'])
-
-        # Build SELECT statement
-        db_cols = ['sensitivity_id AS "Sensitivity ID"']
-        for col in columns:
-            if col != 'Sensitivity ID':
-                db_cols.append(f'"{col}"')
+        # Build SELECT statement with proper column aliasing
+        db_cols = []
+        for col_info in table_info:
+            col_name = col_info['name']
+            if col_name == 'sensitivity_id':
+                db_cols.append('sensitivity_id AS "Sensitivity ID"')
+            else:
+                db_cols.append(f'"{col_name}"')
 
         sql = f'SELECT {", ".join(db_cols)} FROM "{table_name}"'
         if where_clause:
@@ -570,31 +560,30 @@ class FNetFDatabase:
         """Read test data for a test type from the database."""
         table_name = self._get_test_table_name(test_type)
 
-        # Get column info
+        # Get column info from table schema
         cursor = conn.cursor()
-        cursor.execute('SELECT columns FROM test_registry WHERE test_type = ?', (test_type,))
-        row = cursor.fetchone()
-        if not row:
+        cursor.execute(f'PRAGMA table_info("{table_name}")')
+        table_info = cursor.fetchall()
+        if not table_info:
             return None
 
-        columns = json.loads(row['columns'])
-
-        # Build column mapping for SELECT
+        # Build column mapping for SELECT (db column name -> aliased select expression)
         col_map = {
-            'Test ID': 'test_id AS "Test ID"',
-            'RiskGroup': 'risk_group AS "RiskGroup"',
-            'RiskSubGroup': 'risk_sub_group AS "RiskSubGroup"',
-            'RiskClass': 'risk_class AS "RiskClass"',
-            'Description': 'description AS "Description"',
-            'Sensitivity IDs': 'sensitivity_ids AS "Sensitivity IDs"',
+            'test_id': 'test_id AS "Test ID"',
+            'risk_group': 'risk_group AS "RiskGroup"',
+            'risk_sub_group': 'risk_sub_group AS "RiskSubGroup"',
+            'risk_class': 'risk_class AS "RiskClass"',
+            'description': 'description AS "Description"',
+            'sensitivity_ids': 'sensitivity_ids AS "Sensitivity IDs"',
         }
 
         db_cols = []
-        for col in columns:
-            if col in col_map:
-                db_cols.append(col_map[col])
+        for col_info in table_info:
+            col_name = col_info['name']
+            if col_name in col_map:
+                db_cols.append(col_map[col_name])
             else:
-                db_cols.append(f'"{col}"')
+                db_cols.append(f'"{col_name}"')
 
         sql = f'SELECT {", ".join(db_cols)} FROM "{table_name}"'
         df = pd.read_sql_query(sql, conn)
@@ -652,19 +641,34 @@ class FNetFDatabase:
         Returns:
             Dict with 'row_count' and 'columns' keys
         """
+        table_name = self._get_sensitivity_table_name(risk_class)
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                'SELECT row_count, columns FROM risk_class_registry WHERE risk_class = ?',
-                (risk_class,)
-            )
-            row = cursor.fetchone()
-            if row:
-                return {
-                    'row_count': row['row_count'],
-                    'columns': json.loads(row['columns'])
-                }
-            return None
+
+            # Check if table exists and get column info
+            cursor.execute(f'PRAGMA table_info("{table_name}")')
+            table_info = cursor.fetchall()
+            if not table_info:
+                return None
+
+            # Get columns, mapping sensitivity_id back to 'Sensitivity ID'
+            columns = []
+            for col_info in table_info:
+                col_name = col_info['name']
+                if col_name == 'sensitivity_id':
+                    columns.append('Sensitivity ID')
+                else:
+                    columns.append(col_name)
+
+            # Get row count
+            cursor.execute(f'SELECT COUNT(*) as cnt FROM "{table_name}"')
+            row_count = cursor.fetchone()['cnt']
+
+            return {
+                'row_count': row_count,
+                'columns': columns
+            }
 
     def get_sensitivity_data(self, risk_class, risk_group=None, risk_sub_group=None,
                             sensitivity_ids=None, limit=None, offset=None):
@@ -713,20 +717,21 @@ class FNetFDatabase:
         with self._get_connection() as conn:
             table_name = self._get_sensitivity_table_name(risk_class)
 
-            # Get column info
+            # Get column info from table schema
             cursor = conn.cursor()
-            cursor.execute('SELECT columns FROM risk_class_registry WHERE risk_class = ?', (risk_class,))
-            row = cursor.fetchone()
-            if not row:
+            cursor.execute(f'PRAGMA table_info("{table_name}")')
+            table_info = cursor.fetchall()
+            if not table_info:
                 return None
 
-            columns = json.loads(row['columns'])
-
-            # Build SELECT statement
-            db_cols = ['sensitivity_id AS "Sensitivity ID"']
-            for col in columns:
-                if col != 'Sensitivity ID':
-                    db_cols.append(f'"{col}"')
+            # Build SELECT statement with proper column aliasing
+            db_cols = []
+            for col_info in table_info:
+                col_name = col_info['name']
+                if col_name == 'sensitivity_id':
+                    db_cols.append('sensitivity_id AS "Sensitivity ID"')
+                else:
+                    db_cols.append(f'"{col_name}"')
 
             sql = f'SELECT {", ".join(db_cols)} FROM "{table_name}"'
             if where_clause:
@@ -837,31 +842,30 @@ class FNetFDatabase:
         where_clause = ' AND '.join(where_parts) if where_parts else None
 
         with self._get_connection() as conn:
-            # Get column info
+            # Get column info from table schema
             cursor = conn.cursor()
-            cursor.execute('SELECT columns FROM test_registry WHERE test_type = ?', (test_type,))
-            row = cursor.fetchone()
-            if not row:
+            cursor.execute(f'PRAGMA table_info("{table_name}")')
+            table_info = cursor.fetchall()
+            if not table_info:
                 return None
 
-            columns = json.loads(row['columns'])
-
-            # Build column mapping for SELECT
+            # Build column mapping for SELECT (db column name -> aliased select expression)
             col_map = {
-                'Test ID': 'test_id AS "Test ID"',
-                'RiskGroup': 'risk_group AS "RiskGroup"',
-                'RiskSubGroup': 'risk_sub_group AS "RiskSubGroup"',
-                'RiskClass': 'risk_class AS "RiskClass"',
-                'Description': 'description AS "Description"',
-                'Sensitivity IDs': 'sensitivity_ids AS "Sensitivity IDs"',
+                'test_id': 'test_id AS "Test ID"',
+                'risk_group': 'risk_group AS "RiskGroup"',
+                'risk_sub_group': 'risk_sub_group AS "RiskSubGroup"',
+                'risk_class': 'risk_class AS "RiskClass"',
+                'description': 'description AS "Description"',
+                'sensitivity_ids': 'sensitivity_ids AS "Sensitivity IDs"',
             }
 
             db_cols = []
-            for col in columns:
-                if col in col_map:
-                    db_cols.append(col_map[col])
+            for col_info in table_info:
+                col_name = col_info['name']
+                if col_name in col_map:
+                    db_cols.append(col_map[col_name])
                 else:
-                    db_cols.append(f'"{col}"')
+                    db_cols.append(f'"{col_name}"')
 
             sql = f'SELECT {", ".join(db_cols)} FROM "{table_name}"'
             if where_clause:

@@ -1,9 +1,28 @@
 # FNet Format (frtb.net Format) Documentation
 
-**Version:** 3.0
+**Version:** 3.2
 **Copyright:** (C) 2024-2025 frtb.net limited
 
-This document provides comprehensive documentation for the FNet Format (frtb.net Format) file format, which is used for storing FRTB (Fundamental Review of the Trading Book) sensitivity data and unit tests. The format supports Excel (.xlsx), JSON (.json), and SQLite (.db) representations.
+Contact us at <info@frtb.net> or via our website at <https://frtb.net>
+
+This document and the suite of programs to which it relates are free software:
+you can redistribute it and/or modify it under the terms of the GNU Affero
+General Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version.
+
+This document and the suite of programs to which it relates are distributed in
+the hope that they will be useful, but WITHOUT ANY WARRANTY; without even
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See theGNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this document.  If not, see <https://www.gnu.org/licenses/>.
+
+---
+
+This document provides comprehensive documentation for the FNet Format (frtb.net Format) file format, which is used for storing
+FRTB (Fundamental Review of the Trading Book) sensitivity data and unit tests. The format supports Excel (.xlsx), JSON (.json),
+and SQLite (.db) representations.
 
 ---
 
@@ -144,8 +163,8 @@ The SQLite format stores data in a relational database with the following schema
 | `parameters` | Key-value pairs for file metadata |
 | `risk_groups` | Unique (RiskGroup, RiskSubGroup) combinations |
 | `schema_info` | Schema version and format metadata |
-| `risk_class_registry` | Registry of sensitivity tables with row counts |
-| `test_registry` | Registry of test tables with row counts |
+
+Sensitivity and test tables are discovered dynamically using SQLite's `sqlite_master` table and naming conventions (`sensitivities_<RiskClass>` and `tests_<TestType>`).
 
 #### Parameters Table
 
@@ -182,37 +201,14 @@ Contains:
 - `FNetFormatVersion` - The FNet Format version (e.g., "3.0")
 - `DatabaseSchemaVersion` - The database schema version (e.g., "1.0")
 
-#### Risk Class Registry
-
-```sql
-CREATE TABLE risk_class_registry (
-    risk_class TEXT PRIMARY KEY,
-    row_count INTEGER,
-    columns TEXT  -- JSON array of column names
-);
-```
-
-Tracks which sensitivity tables exist and their metadata. This enables lazy loading by providing row counts and column information without querying the data tables.
-
-#### Test Registry
-
-```sql
-CREATE TABLE test_registry (
-    test_type TEXT PRIMARY KEY,
-    row_count INTEGER,
-    columns TEXT  -- JSON array of column names
-);
-```
-
 #### Sensitivity Tables
 
-Each RiskClass has its own table named `sensitivities_<RiskClass>`:
+Each RiskClass has its own table named `sensitivities_<RiskClass>`. The `sensitivity_id` serves as the natural primary key since it is unique across the entire dataset:
 
 ```sql
 -- Example: sensitivities_MS_IRDelta
 CREATE TABLE sensitivities_MS_IRDelta (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sensitivity_id TEXT UNIQUE NOT NULL,
+    sensitivity_id TEXT PRIMARY KEY,
     "RiskGroup" TEXT,
     "RiskSubGroup" TEXT,
     "RiskClass" TEXT,
@@ -223,10 +219,9 @@ CREATE TABLE sensitivities_MS_IRDelta (
     "Sensitivity" REAL
 );
 
--- Indexes for efficient filtering
+-- Composite index for efficient filtering by RiskGroup and RiskSubGroup
+-- This index also satisfies queries filtering on RiskGroup alone
 CREATE INDEX idx_sensitivities_MS_IRDelta_risk_group
-    ON sensitivities_MS_IRDelta ("RiskGroup");
-CREATE INDEX idx_sensitivities_MS_IRDelta_risk_sub_group
     ON sensitivities_MS_IRDelta ("RiskGroup", "RiskSubGroup");
 ```
 
@@ -240,15 +235,34 @@ Column types are mapped as follows:
 | `int64` | `INTEGER` |
 | `bool` | `INTEGER` (0/1) |
 
+#### Discovering Tables
+
+Available RiskClasses and test types are discovered by querying `sqlite_master`:
+
+```sql
+-- Find all sensitivity tables
+SELECT name FROM sqlite_master
+WHERE type='table' AND name LIKE 'sensitivities_%';
+
+-- Find all test tables
+SELECT name FROM sqlite_master
+WHERE type='table' AND name LIKE 'tests_%';
+
+-- Get column information for a table
+PRAGMA table_info("sensitivities_MS_IRDelta");
+
+-- Get row count
+SELECT COUNT(*) FROM "sensitivities_MS_IRDelta";
+```
+
 #### Test Tables
 
-Each test type has its own table named `tests_<TestType>`:
+Each test type has its own table named `tests_<TestType>`. The `test_id` serves as the primary key:
 
 ```sql
 -- Example: tests_CapitalTests
 CREATE TABLE tests_CapitalTests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    test_id TEXT UNIQUE NOT NULL,
+    test_id TEXT PRIMARY KEY,
     risk_group TEXT,
     risk_sub_group TEXT,
     risk_class TEXT,
@@ -276,7 +290,7 @@ The SQLite format provides several advantages:
 3. **Pagination** - Use LIMIT and OFFSET for processing large datasets in chunks
 4. **Concurrent Access** - Multiple readers can access the database simultaneously
 5. **Compact Storage** - Binary format is often smaller than Excel or JSON
-6. **Fast Metadata Queries** - Registry tables provide counts and schema without scanning data
+6. **Self-Describing Schema** - Table structure is discoverable via `sqlite_master` and `PRAGMA table_info`
 
 ---
 
@@ -1447,10 +1461,36 @@ The `FNetF` class (`FNetF.py`) is the primary interface for loading, manipulatin
 ```python
 from FNetF import FNetF
 
-fnf = FNetF()
+fnf = FNetF(lazy_load: bool = False)
 ```
 
 Creates an empty FNetF instance with default parameters.
+
+**Parameters:**
+- `lazy_load` - If True and loading from SQLite, sensitivity data is fetched on-demand rather than loading everything into memory. Default is False for backward compatibility.
+
+**Example - Standard Mode:**
+```python
+fnf = FNetF()  # Load all data into memory
+fnf.load('data.xlsx')
+```
+
+**Example - Lazy Loading Mode:**
+```python
+fnf = FNetF(lazy_load=True)  # Fetch data on-demand from SQLite
+fnf.load('data.db')
+```
+
+#### Context Manager Support
+
+FNetF supports the context manager protocol for automatic resource cleanup:
+
+```python
+with FNetF(lazy_load=True) as fnf:
+    fnf.load('data.db')
+    # Work with the data...
+# Database connection automatically closed
+```
 
 #### Loading Data
 
@@ -1525,9 +1565,40 @@ fnf.getAllRiskClasses() -> List[str]
 Returns list of all possible RiskClasses defined in the format specification.
 
 ```python
-fnf.getRiskClassData(riskClass: str) -> pd.DataFrame
+fnf.getRiskClassData(
+    riskClass: str,
+    sensitivity_ids: List[str] = None,
+    risk_group: str = None,
+    risk_sub_group: str = None
+) -> pd.DataFrame
 ```
 Returns the sensitivity DataFrame for a specific RiskClass.
+
+In lazy loading mode, this fetches data from the database on demand. Optional filters can be used to fetch only specific sensitivities, which is more efficient than loading all data and filtering in Python.
+
+**Parameters:**
+- `riskClass` - The RiskClass to retrieve (e.g., 'MS_IRDelta')
+- `sensitivity_ids` - Optional list of specific Sensitivity IDs to fetch
+- `risk_group` - Optional filter by RiskGroup
+- `risk_sub_group` - Optional filter by RiskSubGroup (requires risk_group)
+
+**Example - Efficient Filtering in Lazy Mode:**
+```python
+fnf = FNetF(lazy_load=True)
+fnf.load('data.db')
+
+# Fetch only specific sensitivities (efficient SQL query)
+specific_data = fnf.getRiskClassData(
+    'MS_IRDelta',
+    sensitivity_ids=['MS_IRD_00001', 'MS_IRD_00002']
+)
+
+# Fetch by risk group
+portfolio_data = fnf.getRiskClassData(
+    'MS_CRDelta',
+    risk_group='Portfolio_A'
+)
+```
 
 ```python
 fnf.setRiskClassData(riskClass: str, sensis: pd.DataFrame) -> None
@@ -1593,6 +1664,43 @@ test_sets = fnf.getUnitTestSets()  # ['CapitalTests', 'BucketTests', ...]
 capital_tests = fnf.getUnitTests('CapitalTests')
 single_test = fnf.getUnitTest('CapitalTests', 'MS_IR_000000')
 test_sensis = fnf.getUnitTestSensis('CapitalTests', 'MS_IR_000000')
+```
+
+#### Utility Methods
+
+```python
+fnf.close() -> None
+```
+Closes any open database connection (for lazy loading mode). Should be called when done with the FNetF instance to release database resources. Alternatively, use the context manager protocol.
+
+```python
+fnf.is_lazy_loading() -> bool
+```
+Returns True if the instance is in lazy loading mode with an active database connection.
+
+```python
+FNetF.find_database(filepath: str) -> str | None
+```
+Static method that finds a SQLite database file corresponding to an Excel or JSON file. Looks for a `.db` file with the same base name in the same directory.
+
+**Parameters:**
+- `filepath` - Path to an Excel (.xlsx) or JSON (.json) file
+
+**Returns:**
+- Path to the .db file if it exists, None otherwise
+
+**Example - Prefer Database When Available:**
+```python
+# Check if a database exists for the Excel file
+db_path = FNetF.find_database('portfolio.xlsx')
+if db_path:
+    # Use lazy loading with the database for better performance
+    fnf = FNetF(lazy_load=True)
+    fnf.load(db_path)
+else:
+    # Fall back to Excel
+    fnf = FNetF()
+    fnf.load('portfolio.xlsx')
 ```
 
 ---
@@ -1915,6 +2023,7 @@ python FNetFConverter.py original.xlsx --compare converted.db
 |---------|------|---------|
 | 3.0 | 2024 | Initial version with Excel and JSON support |
 | 3.1 | 2025 | Added SQLite format with lazy loading support |
+| 3.2 | 2025 | Enhanced FNetF class with lazy loading mode, filtering parameters in getRiskClassData, context manager support, and find_database utility |
 
 ---
 
