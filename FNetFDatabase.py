@@ -316,18 +316,13 @@ class FNetFDatabase:
 
     def _write_sensitivity_data(self, conn, risk_class, df):
         """Write sensitivity data for a risk class to the database."""
-        # Determine extra columns beyond standard FNetFieldType
-        standard_cols = set(FNetFieldType.get(risk_class, {}).keys()) | {'Sensitivity ID'}
-        extra_cols = {col: self._infer_dtype(df[col]) for col in df.columns if col not in standard_cols}
-
-        # Create the table
-        self._create_sensitivity_table(conn, risk_class, extra_cols)
+        # Create the table (standard columns only, matching Excel output behavior)
+        self._create_sensitivity_table(conn, risk_class, {})
 
         table_name = self._get_sensitivity_table_name(risk_class)
 
-        # Prepare column list (excluding auto-increment id)
+        # Prepare column list - standard FNetFieldType columns only
         all_cols = ['Sensitivity ID'] + list(FNetFieldType.get(risk_class, {}).keys())
-        all_cols.extend(extra_cols.keys())
         existing_cols = [col for col in all_cols if col in df.columns]
 
         # Map column names to database column names

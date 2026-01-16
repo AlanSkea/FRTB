@@ -1164,37 +1164,21 @@ class FNetF():
             data['_sensitivities'] = {}
             for riskClass, df in self._sensis.items():
                 if not df.empty:
-                    # Get standard FNetFieldType columns first, then any additional columns
+                    # Get standard FNetFieldType columns only (matching Excel output behavior)
                     fnetf_cols = ['Sensitivity ID'] + list(FNetFieldType[riskClass].keys())
-                    standard_cols = [x for x in fnetf_cols if x in df.columns]
-                    extra_cols = [x for x in df.columns if x not in fnetf_cols]
-                    cols = standard_cols + extra_cols
+                    cols = [x for x in fnetf_cols if x in df.columns]
 
-                    # Get dtypes for documentation - include both standard and extra columns
+                    # Get dtypes for documentation
                     dtypes = {}
                     for col in cols:
                         if col in FNetFieldType[riskClass]:
                             dtypes[col] = FNetFieldType[riskClass][col]
                         elif col == 'Sensitivity ID':
                             dtypes[col] = 'str'
-                        else:
-                            # Infer dtype for extra columns
-                            dtype = df[col].dtype
-                            if dtype == 'object':
-                                dtypes[col] = 'str'
-                            elif dtype == 'bool':
-                                dtypes[col] = 'bool'
-                            elif dtype == 'int64':
-                                dtypes[col] = 'int64'
-                            elif dtype == 'float64':
-                                dtypes[col] = 'float64'
-                            else:
-                                dtypes[col] = str(dtype)
 
                     # Build schema entry for this risk class
                     schema[riskClass] = {
-                        'standard_fields': {k: v for k, v in dtypes.items() if k in fnetf_cols},
-                        'extra_fields': {k: v for k, v in dtypes.items() if k not in fnetf_cols}
+                        'standard_fields': dtypes
                     }
 
                     # Convert DataFrame to list, handling NaN/None properly
