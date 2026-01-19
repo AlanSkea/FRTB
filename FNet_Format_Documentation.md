@@ -144,10 +144,6 @@ The Parameters sheet contains key-value pairs in two columns:
       "dtypes": {"Sensitivity ID": "str", "Sensitivity": "float64", ...},
       "data": [["MS_IRD_00000", "UnitTests", ...], ...]
     }
-  },
-  "_schema": {
-    "description": "Field type definitions",
-    "risk_classes": {...}
   }
 }
 ```

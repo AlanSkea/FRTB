@@ -494,7 +494,7 @@ class FNetF():
                     df = pd.read_excel(fnf, sheet_name=self.FNF_Params_Tab, header=None)
                     self._params =FNU.extractKeyedData(self.FNF_Params_Tab, df, {})  # empty dataTypes dictionary as all are assumed to be 'str'ings
 
-                    if self._params['FNetFormatVersion'] != FNetFormatVersion:
+                    if self._params['FNetFormatVersion'].split('.')[0] != FNetFormatVersion.split('.')[0]:      # compare major version number
                         print(f"Incompatible FNetFormatVersion: code version = {FNetFormatVersion}, file version = {self._params['FNetFormatVersion']}")
                         return None
                 elif sheet in self.FNF_Test_Tabs:
@@ -611,10 +611,16 @@ class FNetF():
             for testType, testData in data['_tests'].items():
                 if testType in self.FNF_Test_Tabs:
                     df = pd.DataFrame(testData['data'], columns=testData['columns'])
-                    # Convert benchmark columns to float64
-                    for col in df.columns:
-                        if col.startswith('Benchmark_'):
-                            df[col] = df[col].astype('float64')
+
+                    colNames = [x for x in testData['columns'] if x not in ['Test ID',
+                                                                            'RiskGroup',
+                                                                            'RiskSubGroup',
+                                                                            'RiskClass',
+                                                                            'Description',
+                                                                            'Sensitivity IDs']]
+                    newColNames = [f"Benchmark_{x}" for x in colNames]
+                    colTypeDict = {x : 'float64' for x in newColNames}
+                    df = df.rename(columns=dict(zip(colNames, newColNames))).astype(colTypeDict)
                     self._tests[testType] = df
 
         # Load sensitivity data (risk classes)
@@ -726,6 +732,15 @@ class FNetF():
             for test_type in self._db.get_test_types():
                 df = self._db.get_test_data(test_type)
                 if df is not None and not df.empty:
+                    colNames = [x for x in df.columns if x not in ['Test ID',
+                                                                   'RiskGroup',
+                                                                   'RiskSubGroup',
+                                                                   'RiskClass',
+                                                                   'Description',
+                                                                   'Sensitivity IDs']]
+                    newColNames = [f"Benchmark_{x}" for x in colNames]
+                    colTypeDict = {x : 'float64' for x in newColNames}
+                    df = df.rename(columns=dict(zip(colNames, newColNames))).astype(colTypeDict)
                     self._tests[test_type] = df
         else:
             # Standard mode: load everything into memory
@@ -1081,12 +1096,16 @@ class FNetF():
             "_sensitivities": {
                 "MS_IRDelta": {
                     "columns": [...],
-                    "dtypes": { "RiskGroup": "str", ... },
+                    "dtypes": { "Sensitivity ID": "str", "RiskGroup": "str", ... },
                     "data": [...]
                 },
                 ...
             }
         }
+
+        Note: The dtypes field in each _sensitivities entry provides the column
+        type information needed for loading. This makes each RiskClass section
+        self-describing.
         """
         data = {}
 
@@ -1156,9 +1175,6 @@ class FNetF():
                         'data': test_data_list
                     }
 
-        # Build schema section documenting field types for all risk classes
-        schema = {}
-
         # Add sensitivity data
         if self._sensis:
             data['_sensitivities'] = {}
@@ -1175,11 +1191,6 @@ class FNetF():
                             dtypes[col] = FNetFieldType[riskClass][col]
                         elif col == 'Sensitivity ID':
                             dtypes[col] = 'str'
-
-                    # Build schema entry for this risk class
-                    schema[riskClass] = {
-                        'standard_fields': dtypes
-                    }
 
                     # Convert DataFrame to list, handling NaN/None properly
                     df_subset = df[cols].copy()
@@ -1198,12 +1209,6 @@ class FNetF():
                         'dtypes': dtypes,
                         'data': data_list
                     }
-
-        # Add schema section documenting all field types
-        data['_schema'] = {
-            'description': 'Field type definitions for risk classes in this file',
-            'risk_classes': schema
-        }
 
         # Write JSON file
         with open(filename, 'w') as f:
