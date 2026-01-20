@@ -744,7 +744,8 @@ class FNetFDatabase:
                         if dtype == 'bool':
                             df[col] = df[col].apply(lambda x: bool(x) if x is not None else False)
                         elif dtype != 'object':
-                            df[col] = df[col].fillna(0 if dtype in ('int64', 'float64') else '')
+                            fill_value = 0 if dtype in ('int64', 'float64') else ''
+                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(fill_value) if dtype in ('int64', 'float64') else df[col].fillna(fill_value)
                         typemap[col] = dtype
                 df = df.astype(typemap)
 

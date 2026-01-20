@@ -154,16 +154,16 @@ class SA_SBM_Calc(FRTBCalculator.FRTBCalculator):
             capital['RiskClass'] = riskClass
             scaledGamma = self.scaleCorrelation(corr, gamma, 0)
             nbdf = bdf[bdf['Correlation'] == corr].set_index('Bucket')
+            Kb = nbdf['Kb']
             Kb2 = nbdf['Kb'] ** 2
             Sb = nbdf['Sb']
+            SbAlt = np.maximum(np.minimum(Sb, Kb), -Kb)
             capital['SumSb'] = Sb.sum()
+            capital['SumSbAlt'] = SbAlt.sum()
             cap = Sb.T @ scaledGamma @ Sb + Kb2.sum()
 
             if self._CVA or cap < 0:
-                Kb = nbdf['Kb']
-                SbAlt = np.maximum(np.minimum(Sb, Kb), -Kb)
                 cap = SbAlt.T.dot(scaledGamma).dot(SbAlt) + Kb2.sum()
-                capital['SumSb'] = SbAlt.sum()
                 capital['SbAlt'] = 1
             else:
                 capital['SbAlt'] = 0
@@ -727,6 +727,7 @@ class MS_CS_SA_SBM_Calc(SA_SBM_Calc):
                 capital['Correlation'] = corr
                 capital['SbAlt'] = 0
                 capital['SumSb'] = otherCapital.at[corr, 'Sb']
+                capital['SumSbAlt'] = otherCapital.at[corr, 'Sb']
                 capital['Capital'] = otherCapital.at[corr, 'Kb']
                 newcapitals.append(capital)
         else:
@@ -737,6 +738,7 @@ class MS_CS_SA_SBM_Calc(SA_SBM_Calc):
 
                 for capital in capitals:
                     capital['SumSb'] += otherCapital.at[capital['Correlation'], 'Sb']
+                    capital['SumSbAlt'] += otherCapital.at[capital['Correlation'], 'Sb']
                     capital['Capital'] += otherCapital.at[capital['Correlation'], 'Kb']
                     newcapitals.append(capital)
             else:
