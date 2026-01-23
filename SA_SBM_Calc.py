@@ -345,6 +345,44 @@ class SA_SBM_Calc(FRTBCalculator.FRTBCalculator):
         return pd.DataFrame(np.zeros((df.shape[0], df.shape[0])))
 
 
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        """
+        Returns a detailed breakdown of the correlation factors between two risk factors.
+
+        This method explains why a particular rho correlation value was computed by
+        showing the individual attribute comparisons and their corresponding rho
+        components. Subclasses should override this method to provide risk-class
+        specific factor breakdowns.
+
+        Args:
+            riskClass: The risk class (e.g., 'MS_IR_Delta')
+            bucket: The bucket identifier
+            factor1: Dict or Series with attributes for the first risk factor
+            factor2: Dict or Series with attributes for the second risk factor
+
+        Returns:
+            dict: {
+                'rho': float,           # Final correlation value
+                'factors': [            # List of factor comparisons
+                    {
+                        'name': str,           # Factor name (e.g., 'TenorRho')
+                        'description': str,    # Human-readable description
+                        'value1': any,         # Attribute value for factor1
+                        'value2': any,         # Attribute value for factor2
+                        'rho_component': float,# Rho contribution from this factor
+                        'config_item': str     # Config item name used (or None)
+                    },
+                    ...
+                ]
+            }
+        """
+        # Base implementation returns empty factors - subclasses override
+        return {
+            'rho': 0.0,
+            'factors': []
+        }
+
+
     def getGamma(self, df):
         # gamma correlations come in two flavours, either a full matrix of inter-bucket correlations
         # or a single value to be applied between all bucket pairs.  In either case we want to return
@@ -499,6 +537,161 @@ class MS_IR_SA_SBM_Calc(SA_SBM_Calc):
         return pd.DataFrame(g, index=buckets, columns=buckets)
 
 
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        # Get the attribute values based on risk type
+        if riskType == 'Delta':
+            # _rhoFactorFields['Delta'] = ['CurveType', 'Curve', 'Tenor']
+            ct1, curve1, tenor1 = factor1['CurveType'], factor1['Curve'], factor1['Tenor']
+            ct2, curve2, tenor2 = factor2['CurveType'], factor2['Curve'], factor2['Tenor']
+
+            tenorRho = self.getConfigItem('DeltaTenorRho')
+            curveRho = self.getConfigItem('DeltaCurveRho')
+            inflRho = self.getConfigItem('DeltaInflationRho')
+            xCcyRho = self.getConfigItem('DeltaXCcyBasisRho')
+
+            # Determine base correlation based on curve types
+            if ct1 == 'XCCY' or ct2 == 'XCCY':
+                rho = xCcyRho
+                factors.append({
+                    'name': 'XCcyBasisRho',
+                    'description': 'XCCY basis correlation (one or both factors are XCCY)',
+                    'value1': ct1,
+                    'value2': ct2,
+                    'rho_component': xCcyRho,
+                    'config_item': 'DeltaXCcyBasisRho'
+                })
+            elif ct1 == 'INFL' or ct2 == 'INFL':
+                if ct1 == ct2:  # both INFL
+                    rho = 1.0
+                    factors.append({
+                        'name': 'InflationRho',
+                        'description': 'Both factors are INFL curves',
+                        'value1': ct1,
+                        'value2': ct2,
+                        'rho_component': 1.0,
+                        'config_item': None
+                    })
+                else:
+                    rho = inflRho
+                    factors.append({
+                        'name': 'InflationRho',
+                        'description': 'Inflation vs non-inflation correlation',
+                        'value1': ct1,
+                        'value2': ct2,
+                        'rho_component': inflRho,
+                        'config_item': 'DeltaInflationRho'
+                    })
+            else:
+                # Both are IR curves - use tenor correlation
+                tenorCorr = tenorRho.at[tenor1, tenor2]
+                rho = tenorCorr
+                factors.append({
+                    'name': 'TenorRho',
+                    'description': 'Tenor correlation between IR curves',
+                    'value1': tenor1,
+                    'value2': tenor2,
+                    'rho_component': tenorCorr,
+                    'config_item': 'DeltaTenorRho'
+                })
+
+            # Apply curve multiplier if same curve type but different curve
+            if ct1 == ct2 and curve1 != curve2:
+                rho *= curveRho
+                factors.append({
+                    'name': 'CurveRho',
+                    'description': 'Same curve type but different curves',
+                    'value1': curve1,
+                    'value2': curve2,
+                    'rho_component': curveRho,
+                    'config_item': 'DeltaCurveRho'
+                })
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['CurveType', 'OptionMaturity', 'UnderlyingResidualMaturity']
+            ct1, optMat1, undMat1 = factor1['CurveType'], factor1['OptionMaturity'], factor1['UnderlyingResidualMaturity']
+            ct2, optMat2, undMat2 = factor2['CurveType'], factor2['OptionMaturity'], factor2['UnderlyingResidualMaturity']
+
+            optionTenorRho = self.getConfigItem('VegaOptionTenorRho')
+            underlyingTenorRho = self.getConfigItem('VegaUnderlyingTenorRho')
+            inflRho = self.getConfigItem('DeltaInflationRho')
+            xCcyRho = self.getConfigItem('DeltaXCcyBasisRho')
+
+            if ct1 == 'IR' and ct2 == 'IR':
+                optCorr = optionTenorRho.loc[optMat1, optMat2]
+                undCorr = underlyingTenorRho.loc[undMat1, undMat2]
+                rho = min(optCorr * undCorr, 1.0)
+                factors.append({
+                    'name': 'OptionTenorRho',
+                    'description': 'Option maturity correlation',
+                    'value1': optMat1,
+                    'value2': optMat2,
+                    'rho_component': optCorr,
+                    'config_item': 'VegaOptionTenorRho'
+                })
+                factors.append({
+                    'name': 'UnderlyingTenorRho',
+                    'description': 'Underlying residual maturity correlation',
+                    'value1': undMat1,
+                    'value2': undMat2,
+                    'rho_component': undCorr,
+                    'config_item': 'VegaUnderlyingTenorRho'
+                })
+            elif ct1 == ct2:
+                # Both XCCY or both INFL
+                optCorr = optionTenorRho.loc[optMat1, optMat2]
+                rho = min(optCorr, 1.0)
+                factors.append({
+                    'name': 'OptionTenorRho',
+                    'description': f'Option maturity correlation (both {ct1})',
+                    'value1': optMat1,
+                    'value2': optMat2,
+                    'rho_component': optCorr,
+                    'config_item': 'VegaOptionTenorRho'
+                })
+            elif ct1 == 'XCCY' or ct2 == 'XCCY':
+                rho = xCcyRho
+                factors.append({
+                    'name': 'XCcyBasisRho',
+                    'description': 'XCCY basis correlation (one factor is XCCY)',
+                    'value1': ct1,
+                    'value2': ct2,
+                    'rho_component': xCcyRho,
+                    'config_item': 'DeltaXCcyBasisRho'
+                })
+            else:
+                # One INFL, one IR
+                optCorr = optionTenorRho.loc[optMat1, optMat2]
+                rho = min(inflRho * optCorr, 1.0)
+                factors.append({
+                    'name': 'InflationRho',
+                    'description': 'Inflation vs IR correlation',
+                    'value1': ct1,
+                    'value2': ct2,
+                    'rho_component': inflRho,
+                    'config_item': 'DeltaInflationRho'
+                })
+                factors.append({
+                    'name': 'OptionTenorRho',
+                    'description': 'Option maturity correlation',
+                    'value1': optMat1,
+                    'value2': optMat2,
+                    'rho_component': optCorr,
+                    'config_item': 'VegaOptionTenorRho'
+                })
+
+        else:  # Curvature - no intra-bucket correlations in IR
+            pass
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
+
+
 ## CR : Credit Non-Securitisations / CSR_NS
 #
 @FRTBCalculator.registerClass
@@ -578,6 +771,110 @@ class MS_CR_SA_SBM_Calc(SA_SBM_Calc):
                 return self.calcDeltaVegaOtherBucket
 
 
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        indexBuckets = self.getConfigItem('IndexBuckets').to_list()
+        isIndex = bucket in indexBuckets
+        suffix = 'Index' if isIndex else ''
+
+        if riskType == 'Delta':
+            # _rhoFactorFields['Delta'] = ['CreditName', 'CurveType', 'Tenor']
+            name1, ct1, tenor1 = factor1['CreditName'], factor1['CurveType'], factor1['Tenor']
+            name2, ct2, tenor2 = factor2['CreditName'], factor2['CurveType'], factor2['Tenor']
+
+            nameRho = self.getConfigItem(f'DeltaName{suffix}Rho')
+            tenorRho = self.getConfigItem(f'DeltaTenor{suffix}Rho')
+            basisRho = self.getConfigItem(f'DeltaBasis{suffix}Rho')
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': f'Different obligor names ({"index" if isIndex else "non-index"} bucket)',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': f'DeltaName{suffix}Rho'
+                })
+
+            if ct1 != ct2:
+                rho *= basisRho
+                factors.append({
+                    'name': 'BasisRho',
+                    'description': f'Different curve types ({"index" if isIndex else "non-index"} bucket)',
+                    'value1': ct1,
+                    'value2': ct2,
+                    'rho_component': basisRho,
+                    'config_item': f'DeltaBasis{suffix}Rho'
+                })
+
+            if tenor1 != tenor2:
+                rho *= tenorRho
+                factors.append({
+                    'name': 'TenorRho',
+                    'description': f'Different tenors ({"index" if isIndex else "non-index"} bucket)',
+                    'value1': tenor1,
+                    'value2': tenor2,
+                    'rho_component': tenorRho,
+                    'config_item': f'DeltaTenor{suffix}Rho'
+                })
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['CreditName', 'OptionMaturity']
+            name1, optMat1 = factor1['CreditName'], factor1['OptionMaturity']
+            name2, optMat2 = factor2['CreditName'], factor2['OptionMaturity']
+
+            nameRho = self.getConfigItem(f'DeltaName{suffix}Rho')
+            optionTenorRho = self.getConfigItem('VegaOptionTenorRho')
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': f'Different obligor names ({"index" if isIndex else "non-index"} bucket)',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': f'DeltaName{suffix}Rho'
+                })
+
+            optCorr = optionTenorRho.at[optMat1, optMat2]
+            rho = min(rho * optCorr, 1.0)
+            factors.append({
+                'name': 'OptionTenorRho',
+                'description': 'Option maturity correlation',
+                'value1': optMat1,
+                'value2': optMat2,
+                'rho_component': optCorr,
+                'config_item': 'VegaOptionTenorRho'
+            })
+
+        elif riskType == 'Curvature':
+            # _rhoFactorFields['Curvature'] = ['CreditName']
+            name1 = factor1['CreditName']
+            name2 = factor2['CreditName']
+
+            nameRho = self.getConfigItem(f'DeltaName{suffix}Rho')
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': f'Different obligor names ({"index" if isIndex else "non-index"} bucket)',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': f'DeltaName{suffix}Rho'
+                })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
+
 
 ## CC : Credit Securitisations, Correlaion Trading Portfolio (CTP) / CSR_SC
 #
@@ -636,6 +933,104 @@ class MS_CC_SA_SBM_Calc(SA_SBM_Calc):
                 return self.calcCurvatureOtherBucket
             else:
                 return self.calcDeltaVegaOtherBucket
+
+
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        nameRho = self.getConfigItem('DeltaNameRho')
+        tenorRho = self.getConfigItem('DeltaTenorRho')
+        basisRho = self.getConfigItem('DeltaBasisRho')
+
+        if riskType == 'Delta':
+            # _rhoFactorFields['Delta'] = ['Underlier', 'CurveType', 'Tenor']
+            name1, ct1, tenor1 = factor1['Underlier'], factor1['CurveType'], factor1['Tenor']
+            name2, ct2, tenor2 = factor2['Underlier'], factor2['CurveType'], factor2['Tenor']
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': 'Different underliers',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': 'DeltaNameRho'
+                })
+
+            if ct1 != ct2:
+                rho *= basisRho
+                factors.append({
+                    'name': 'BasisRho',
+                    'description': 'Different curve types',
+                    'value1': ct1,
+                    'value2': ct2,
+                    'rho_component': basisRho,
+                    'config_item': 'DeltaBasisRho'
+                })
+
+            if tenor1 != tenor2:
+                rho *= tenorRho
+                factors.append({
+                    'name': 'TenorRho',
+                    'description': 'Different tenors',
+                    'value1': tenor1,
+                    'value2': tenor2,
+                    'rho_component': tenorRho,
+                    'config_item': 'DeltaTenorRho'
+                })
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['Underlier', 'OptionMaturity']
+            name1, optMat1 = factor1['Underlier'], factor1['OptionMaturity']
+            name2, optMat2 = factor2['Underlier'], factor2['OptionMaturity']
+
+            optionTenorRho = self.getConfigItem('VegaOptionTenorRho')
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': 'Different underliers',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': 'DeltaNameRho'
+                })
+
+            optCorr = optionTenorRho.at[optMat1, optMat2]
+            rho = min(rho * optCorr, 1.0)
+            factors.append({
+                'name': 'OptionTenorRho',
+                'description': 'Option maturity correlation',
+                'value1': optMat1,
+                'value2': optMat2,
+                'rho_component': optCorr,
+                'config_item': 'VegaOptionTenorRho'
+            })
+
+        elif riskType == 'Curvature':
+            # _rhoFactorFields['Curvature'] = ['Underlier']
+            name1 = factor1['Underlier']
+            name2 = factor2['Underlier']
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': 'Different underliers',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': 'DeltaNameRho'
+                })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
 
 
 ## CS : Credit Securitisations, non-CTP / CSR_SNC
@@ -784,6 +1179,104 @@ class MS_CS_SA_SBM_Calc(SA_SBM_Calc):
         return newcapitals
 
 
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        trancheRho = self.getConfigItem('DeltaTrancheRho')
+        tenorRho = self.getConfigItem('DeltaTenorRho')
+        basisRho = self.getConfigItem('DeltaBasisRho')
+
+        if riskType == 'Delta':
+            # _rhoFactorFields['Delta'] = ['Underlier', 'CurveType', 'Tenor']
+            name1, ct1, tenor1 = factor1['Underlier'], factor1['CurveType'], factor1['Tenor']
+            name2, ct2, tenor2 = factor2['Underlier'], factor2['CurveType'], factor2['Tenor']
+
+            if name1 != name2:
+                rho *= trancheRho
+                factors.append({
+                    'name': 'TrancheRho',
+                    'description': 'Different issuer/tranche/index',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': trancheRho,
+                    'config_item': 'DeltaTrancheRho'
+                })
+
+            if ct1 != ct2:
+                rho *= basisRho
+                factors.append({
+                    'name': 'BasisRho',
+                    'description': 'Different curve types',
+                    'value1': ct1,
+                    'value2': ct2,
+                    'rho_component': basisRho,
+                    'config_item': 'DeltaBasisRho'
+                })
+
+            if tenor1 != tenor2:
+                rho *= tenorRho
+                factors.append({
+                    'name': 'TenorRho',
+                    'description': 'Different tenors',
+                    'value1': tenor1,
+                    'value2': tenor2,
+                    'rho_component': tenorRho,
+                    'config_item': 'DeltaTenorRho'
+                })
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['Underlier', 'OptionMaturity']
+            name1, optMat1 = factor1['Underlier'], factor1['OptionMaturity']
+            name2, optMat2 = factor2['Underlier'], factor2['OptionMaturity']
+
+            optionTenorRho = self.getConfigItem('VegaOptionTenorRho')
+
+            if name1 != name2:
+                rho *= trancheRho
+                factors.append({
+                    'name': 'TrancheRho',
+                    'description': 'Different issuer/tranche/index',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': trancheRho,
+                    'config_item': 'DeltaTrancheRho'
+                })
+
+            optCorr = optionTenorRho.at[optMat1, optMat2]
+            rho = min(rho * optCorr, 1.0)
+            factors.append({
+                'name': 'OptionTenorRho',
+                'description': 'Option maturity correlation',
+                'value1': optMat1,
+                'value2': optMat2,
+                'rho_component': optCorr,
+                'config_item': 'VegaOptionTenorRho'
+            })
+
+        elif riskType == 'Curvature':
+            # _rhoFactorFields['Curvature'] = ['Underlier']
+            name1 = factor1['Underlier']
+            name2 = factor2['Underlier']
+
+            if name1 != name2:
+                rho *= trancheRho
+                factors.append({
+                    'name': 'TrancheRho',
+                    'description': 'Different issuer/tranche/index',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': trancheRho,
+                    'config_item': 'DeltaTrancheRho'
+                })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
+
+
 ## EQ : Equities
 #
 @FRTBCalculator.registerClass
@@ -860,6 +1353,93 @@ class MS_EQ_SA_SBM_Calc(SA_SBM_Calc):
                 return self.calcDeltaVegaOtherBucket
 
 
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        nameRho = self.getConfigItem('DeltaNameBucketRho').at[bucket]
+        spotRepoRho = self.getConfigItem('DeltaSpotRepoRho')
+
+        if riskType == 'Delta':
+            # _rhoFactorFields['Delta'] = ['EquityName', 'SpotRepo']
+            name1, sr1 = factor1['EquityName'], factor1['SpotRepo']
+            name2, sr2 = factor2['EquityName'], factor2['SpotRepo']
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': f'Different equity names (bucket {bucket})',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': 'DeltaNameBucketRho'
+                })
+
+            if sr1 != sr2:
+                rho *= spotRepoRho
+                factors.append({
+                    'name': 'SpotRepoRho',
+                    'description': 'One spot, one repo',
+                    'value1': sr1,
+                    'value2': sr2,
+                    'rho_component': spotRepoRho,
+                    'config_item': 'DeltaSpotRepoRho'
+                })
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['EquityName', 'OptionMaturity']
+            name1, optMat1 = factor1['EquityName'], factor1['OptionMaturity']
+            name2, optMat2 = factor2['EquityName'], factor2['OptionMaturity']
+
+            optionTenorRho = self.getConfigItem('VegaOptionTenorRho')
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': f'Different equity names (bucket {bucket})',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': 'DeltaNameBucketRho'
+                })
+
+            if optMat1 != optMat2:
+                optCorr = optionTenorRho.at[optMat1, optMat2]
+                rho = min(rho * optCorr, 1.0)
+                factors.append({
+                    'name': 'OptionTenorRho',
+                    'description': 'Different option maturities',
+                    'value1': optMat1,
+                    'value2': optMat2,
+                    'rho_component': optCorr,
+                    'config_item': 'VegaOptionTenorRho'
+                })
+
+        elif riskType == 'Curvature':
+            # _rhoFactorFields['Curvature'] = ['EquityName']
+            name1 = factor1['EquityName']
+            name2 = factor2['EquityName']
+
+            if name1 != name2:
+                rho *= nameRho
+                factors.append({
+                    'name': 'NameRho',
+                    'description': f'Different equity names (bucket {bucket})',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': nameRho,
+                    'config_item': 'DeltaNameBucketRho'
+                })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
+
+
 ## CM : Commodities / COMM
 #
 @FRTBCalculator.registerClass
@@ -902,6 +1482,104 @@ class MS_CM_SA_SBM_Calc(SA_SBM_Calc):
                 rho[i, j] = rho[j, i] = corr
 
         return pd.DataFrame(rho, index=df.index, columns=df.index)
+
+
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        commodityRho = self.getConfigItem('DeltaCommodityRho').at[bucket]
+        deltaTenorRho = self.getConfigItem('DeltaTenorRho')
+        basisRho = self.getConfigItem('DeltaBasisRho')
+
+        if riskType == 'Delta':
+            # _rhoFactorFields['Delta'] = ['CommodityName', 'DeliveryLocation', 'Tenor']
+            name1, loc1, tenor1 = factor1['CommodityName'], factor1['DeliveryLocation'], factor1['Tenor']
+            name2, loc2, tenor2 = factor2['CommodityName'], factor2['DeliveryLocation'], factor2['Tenor']
+
+            if name1 != name2:
+                rho *= commodityRho
+                factors.append({
+                    'name': 'CommodityRho',
+                    'description': f'Different commodity names (bucket {bucket})',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': commodityRho,
+                    'config_item': 'DeltaCommodityRho'
+                })
+
+            if tenor1 != tenor2:
+                rho *= deltaTenorRho
+                factors.append({
+                    'name': 'TenorRho',
+                    'description': 'Different tenors',
+                    'value1': tenor1,
+                    'value2': tenor2,
+                    'rho_component': deltaTenorRho,
+                    'config_item': 'DeltaTenorRho'
+                })
+
+            if loc1 != loc2:
+                rho *= basisRho
+                factors.append({
+                    'name': 'BasisRho',
+                    'description': 'Different delivery locations',
+                    'value1': loc1,
+                    'value2': loc2,
+                    'rho_component': basisRho,
+                    'config_item': 'DeltaBasisRho'
+                })
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['CommodityName', 'OptionMaturity']
+            name1, optMat1 = factor1['CommodityName'], factor1['OptionMaturity']
+            name2, optMat2 = factor2['CommodityName'], factor2['OptionMaturity']
+
+            optionTenorRho = self.getConfigItem('VegaOptionTenorRho')
+
+            if name1 != name2:
+                rho *= commodityRho
+                factors.append({
+                    'name': 'CommodityRho',
+                    'description': f'Different commodity names (bucket {bucket})',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': commodityRho,
+                    'config_item': 'DeltaCommodityRho'
+                })
+
+            optCorr = optionTenorRho.at[optMat1, optMat2]
+            rho = min(rho * optCorr, 1.0)
+            factors.append({
+                'name': 'OptionTenorRho',
+                'description': 'Option maturity correlation',
+                'value1': optMat1,
+                'value2': optMat2,
+                'rho_component': optCorr,
+                'config_item': 'VegaOptionTenorRho'
+            })
+
+        elif riskType == 'Curvature':
+            # _rhoFactorFields['Curvature'] = ['CommodityName']
+            name1 = factor1['CommodityName']
+            name2 = factor2['CommodityName']
+
+            if name1 != name2:
+                rho *= commodityRho
+                factors.append({
+                    'name': 'CommodityRho',
+                    'description': f'Different commodity names (bucket {bucket})',
+                    'value1': name1,
+                    'value2': name2,
+                    'rho_component': commodityRho,
+                    'config_item': 'DeltaCommodityRho'
+                })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
 
 
 ## FX : Foreign Exchange
@@ -951,6 +1629,43 @@ class MS_FX_SA_SBM_Calc(SA_SBM_Calc):
         rhoTenor = self.getConfigItem('VegaOptionTenorRho')
         tenors = df['OptionMaturity'].to_list()
         return rhoTenor.loc[tenors, tenors]
+
+
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        # FX Delta and Curvature have no intra-bucket correlations (single factor per bucket)
+        if riskType == 'Delta' or riskType == 'Curvature':
+            # No factors to compare - each bucket has only one risk factor
+            return {
+                'rho': 1.0,
+                'factors': []
+            }
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['OptionMaturity']
+            optMat1 = factor1['OptionMaturity']
+            optMat2 = factor2['OptionMaturity']
+
+            rhoTenor = self.getConfigItem('VegaOptionTenorRho')
+            optCorr = rhoTenor.at[optMat1, optMat2]
+            rho = optCorr
+
+            factors.append({
+                'name': 'OptionTenorRho',
+                'description': 'Option maturity correlation',
+                'value1': optMat1,
+                'value2': optMat2,
+                'rho_component': optCorr,
+                'config_item': 'VegaOptionTenorRho'
+            })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
 
 
 #%%################################################
@@ -1021,6 +1736,90 @@ class CS_IR_SA_SBM_Calc(SA_SBM_Calc):
                 rho[i, j] = rho[j, i] = corr
 
         return pd.DataFrame(rho, index=df.index, columns=df.index)
+
+
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        riskType = riskClass[5:]
+        factors = []
+        rho = 1.0
+
+        BaselCcys = self.getConfigItem('BaselCcys').to_list()
+        if self._regulator == 'EU-EBA':
+            BaselCcys.extend(self.getConfigItem('ERMIICcys').to_list())
+
+        if riskType == 'Delta':
+            # _rhoFactorFields['Delta'] = ['CurveType', 'Tenor']
+            ct1, tenor1 = factor1['CurveType'], factor1['Tenor']
+            ct2, tenor2 = factor2['CurveType'], factor2['Tenor']
+
+            deltaInflationRho = self.getConfigItem('DeltaInflationRho')
+            deltaTenorRho = self.getConfigItem('DeltaTenorRho')
+            deltaIlliquidRho = self.getConfigItem('DeltaIlliquidRho')
+
+            if ct1 == 'INFL' or ct2 == 'INFL':
+                if ct1 == ct2:  # both INFL
+                    rho = 1.0
+                    factors.append({
+                        'name': 'InflationRho',
+                        'description': 'Both factors are INFL curves',
+                        'value1': ct1,
+                        'value2': ct2,
+                        'rho_component': 1.0,
+                        'config_item': None
+                    })
+                else:
+                    rho = deltaInflationRho
+                    factors.append({
+                        'name': 'InflationRho',
+                        'description': 'Inflation vs non-inflation correlation',
+                        'value1': ct1,
+                        'value2': ct2,
+                        'rho_component': deltaInflationRho,
+                        'config_item': 'DeltaInflationRho'
+                    })
+            elif bucket in BaselCcys:
+                tenorCorr = deltaTenorRho.at[tenor1, tenor2]
+                rho = tenorCorr
+                factors.append({
+                    'name': 'TenorRho',
+                    'description': f'Tenor correlation (Basel currency: {bucket})',
+                    'value1': tenor1,
+                    'value2': tenor2,
+                    'rho_component': tenorCorr,
+                    'config_item': 'DeltaTenorRho'
+                })
+            else:
+                rho = deltaIlliquidRho
+                factors.append({
+                    'name': 'IlliquidRho',
+                    'description': f'Illiquid currency correlation (bucket: {bucket})',
+                    'value1': tenor1,
+                    'value2': tenor2,
+                    'rho_component': deltaIlliquidRho,
+                    'config_item': 'DeltaIlliquidRho'
+                })
+
+        elif riskType == 'Vega':
+            # _rhoFactorFields['Vega'] = ['CurveType']
+            ct1 = factor1['CurveType']
+            ct2 = factor2['CurveType']
+
+            vegaRho = self.getConfigItem('VegaRho')
+            rho = vegaRho
+            factors.append({
+                'name': 'VegaRho',
+                'description': 'Vega correlation between curve types',
+                'value1': ct1,
+                'value2': ct2,
+                'rho_component': vegaRho,
+                'config_item': 'VegaRho'
+            })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
+
 
 # FX : Foreign Exchange
 #
@@ -1103,6 +1902,76 @@ class CS_CC_SA_SBM_Calc(SA_SBM_Calc):
                 rho[i, j] = rho[j, i] = corr
 
         return pd.DataFrame(rho, index=df.index, columns=df.index)
+
+
+    def getRhoFactors(self, riskClass, bucket, factor1, factor2):
+        factors = []
+        rho = 1.0
+
+        # _rhoFactorFields['Delta'] = ['CreditName', 'ParentName', 'IG_HYNR', 'Tenor']
+        name1, parent1, rating1, tenor1 = factor1['CreditName'], factor1['ParentName'], factor1['IG_HYNR'], factor1['Tenor']
+        name2, parent2, rating2, tenor2 = factor2['CreditName'], factor2['ParentName'], factor2['IG_HYNR'], factor2['Tenor']
+
+        indexBuckets = self.getConfigItem('IndexBuckets').to_list()
+        isIndex = bucket in indexBuckets
+        suffix = 'Index' if isIndex else ''
+
+        nameRelatedRho = self.getConfigItem(f'DeltaNameRelated{suffix}Rho')
+        nameUnrelatedRho = self.getConfigItem(f'DeltaNameUnrelated{suffix}Rho')
+        tenorRho = self.getConfigItem(f'DeltaTenor{suffix}Rho')
+        ratingRho = self.getConfigItem(f'DeltaCreditQuality{suffix}Rho')
+
+        # Name/Parent correlation
+        if parent1 == parent2:
+            if name1 != name2:
+                rho *= nameRelatedRho
+                factors.append({
+                    'name': 'NameRelatedRho',
+                    'description': f'Same parent, different names ({"index" if isIndex else "non-index"} bucket)',
+                    'value1': f'{name1} (parent: {parent1})',
+                    'value2': f'{name2} (parent: {parent2})',
+                    'rho_component': nameRelatedRho,
+                    'config_item': f'DeltaNameRelated{suffix}Rho'
+                })
+        else:
+            rho *= nameUnrelatedRho
+            factors.append({
+                'name': 'NameUnrelatedRho',
+                'description': f'Different parents ({"index" if isIndex else "non-index"} bucket)',
+                'value1': f'{name1} (parent: {parent1})',
+                'value2': f'{name2} (parent: {parent2})',
+                'rho_component': nameUnrelatedRho,
+                'config_item': f'DeltaNameUnrelated{suffix}Rho'
+            })
+
+        # Credit quality correlation
+        if rating1 != rating2:
+            rho *= ratingRho
+            factors.append({
+                'name': 'CreditQualityRho',
+                'description': f'Different credit quality ({"index" if isIndex else "non-index"} bucket)',
+                'value1': rating1,
+                'value2': rating2,
+                'rho_component': ratingRho,
+                'config_item': f'DeltaCreditQuality{suffix}Rho'
+            })
+
+        # Tenor correlation
+        if tenor1 != tenor2:
+            rho *= tenorRho
+            factors.append({
+                'name': 'TenorRho',
+                'description': f'Different tenors ({"index" if isIndex else "non-index"} bucket)',
+                'value1': tenor1,
+                'value2': tenor2,
+                'rho_component': tenorRho,
+                'config_item': f'DeltaTenor{suffix}Rho'
+            })
+
+        return {
+            'rho': rho,
+            'factors': factors
+        }
 
 
 ## CR : Reference Credet Spread / CSR_REF
