@@ -29,7 +29,39 @@ import math
 
 import FRTBUtils as FNU
 
-FNetFormatVersion = '3.2'
+FNetFormatVersion = '3.3'
+
+# Standard copyright text (proprietary license)
+_copyright_text = [
+    f"frtb.net Format (FNetF) version {FNetFormatVersion}",
+    "",
+    "Copyright (C) 2024-2025 frtb.net limited",
+    "",
+    "This software is licensed and _IS_NOT_ free to distribute.  For more information",
+    "contact us at <info@frtb.net> or via our website at <https://frtb.net>"
+]
+
+# Copyleft text (AGPL license)
+_copyleft_text = [
+    f"frtb.net Format (FNetF) version {FNetFormatVersion}",
+    "",
+    "Copyright (C) 2024-2025 frtb.net limited",
+    "",
+    "Contact us at <info@frtb.net> or via our website at <https://frtb.net>",
+    "",
+    "This program is free software: you can redistribute it and/or modify",
+    "it under the terms of the GNU Affero General Public License as",
+    "published by the Free Software Foundation, either version 3 of the",
+    "License, or (at your option) any later version.",
+    "",
+    "This program is distributed in the hope that it will be useful,",
+    "but WITHOUT ANY WARRANTY; without even the implied warranty of",
+    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the",
+    "GNU Affero General Public License for more details.",
+    "",
+    "You should have received a copy of the GNU Affero General Public License",
+    "along with this program.  If not, see <https://www.gnu.org/licenses/>."
+]
 
 
 class _FNetFJSONEncoder(json.JSONEncoder):
@@ -490,9 +522,18 @@ class FNetF():
         """Load FNetF data from Excel file."""
         with pd.ExcelFile(filepath) as fnf:
             for sheet in fnf.sheet_names:
-                if sheet == self.FNF_Params_Tab:
+                if sheet == self.FNF_Copyright_Tab:
+                    # Load copyright from the Copyright sheet
+                    df = pd.read_excel(fnf, sheet_name=self.FNF_Copyright_Tab, header=None)
+                    copyright_lines = df.iloc[:, 0].tolist() if not df.empty else []
+                    self._copyright = {
+                        'value': copyright_lines,
+                        'type': 'text',
+                        'note': 'Copyright and license information'
+                    }
+                elif sheet == self.FNF_Params_Tab:
                     df = pd.read_excel(fnf, sheet_name=self.FNF_Params_Tab, header=None)
-                    self._params =FNU.extractKeyedData(self.FNF_Params_Tab, df, {})  # empty dataTypes dictionary as all are assumed to be 'str'ings
+                    self._params = FNU.extractKeyedData(self.FNF_Params_Tab, df, {})  # empty dataTypes dictionary as all are assumed to be 'str'ings
 
                     if self._params['FNetFormatVersion'].split('.')[0] != FNetFormatVersion.split('.')[0]:      # compare major version number
                         print(f"Incompatible FNetFormatVersion: code version = {FNetFormatVersion}, file version = {self._params['FNetFormatVersion']}")
@@ -1063,6 +1104,13 @@ class FNetF():
         """Save FNetF data to Excel file."""
         # create the ExcelWriter object
         writer = pd.ExcelWriter(filename)
+
+        # Write copyright if set
+        if hasattr(self, '_copyright') and self._copyright:
+            copyright_lines = self._copyright.get('value', [])
+            copyright_df = pd.DataFrame({'Copyright': copyright_lines})
+            copyright_df.to_excel(writer, sheet_name=self.FNF_Copyright_Tab, index=False, header=False)
+
         params = pd.DataFrame(self._params, index=['Params'])
         # TODO maybe: create the inverse of FRTBUtils.extractKeyedData to write the data back to the Excel file
         params.T['Params'].to_excel(writer, sheet_name=self.FNF_Params_Tab, index=True, header=False)
@@ -1109,46 +1157,9 @@ class FNetF():
         """
         data = {}
 
-        # Add copyright
-        copyright_text = [
-            f"frtb.net Format (FNetF) version {FNetFormatVersion}",
-            "",
-            "Copyright (C) 2024-2025 frtb.net limited",
-            "",
-            "This software is licensed and _IS_NOT_ free to distribute.  For more information",
-            "contact us at <info@frtb.net> or via our website at <https://frtb.net>"
-        ]
-
-        copyleft_text = [
-            f"frtb.net Format (FNetF) version {FNetFormatVersion}",
-            "",
-            "Copyright (C) 2024-2025 frtb.net limited",
-            "",
-            "Contact us at <info@frtb.net> or via our website at <https://frtb.net>",
-            "",
-            "This program is free software: you can redistribute it and/or modify",
-            "it under the terms of the GNU Affero General Public License as",
-            "published by the Free Software Foundation, either version 3 of the",
-            "License, or (at your option) any later version.",
-            "",
-            "This program is distributed in the hope that it will be useful,",
-            "but WITHOUT ANY WARRANTY; without even the implied warranty of",
-            "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the",
-            "GNU Affero General Public License for more details.",
-            "",
-            "You should have received a copy of the GNU Affero General Public License",
-            "along with this program.  If not, see <https://www.gnu.org/licenses/>."
-        ]
-
-        # Use stored copyright if available
+        # Add copyright if set
         if hasattr(self, '_copyright') and self._copyright:
             data['_copyright'] = self._copyright
-        else:
-            data['_copyright'] = {
-                'value': copyright_text,
-                'type': 'text',
-                'note': 'Copyright and license information'
-            }
 
         # Add parameters
         data['_parameters'] = self._params.copy()
@@ -1242,6 +1253,58 @@ class FNetF():
             self._tests[testType] = tests
 
 
+    def set_copyright(self):
+        """
+        Set the copyright to the standard proprietary license text.
+        This will be saved in the output file (JSON, Excel, or SQLite).
+        """
+        self._copyright = {
+            'value': _copyright_text,
+            'type': 'text',
+            'note': 'Copyright and license information'
+        }
+
+
+    def set_copyleft(self):
+        """
+        Set the copyright to the AGPL copyleft license text.
+        This will be saved in the output file (JSON, Excel, or SQLite).
+        """
+        self._copyright = {
+            'value': _copyleft_text,
+            'type': 'text',
+            'note': 'Copyright and license information'
+        }
+
+
+    def set_copyright_text(self, text):
+        """
+        Set the copyright to custom text.
+        This will be saved in the output file (JSON, Excel, or SQLite).
+
+        Args:
+            text: Either a string (will be split on newlines) or a list of strings
+                  representing lines of the copyright text.
+        """
+        if isinstance(text, str):
+            text = text.split('\n')
+        self._copyright = {
+            'value': text,
+            'type': 'text',
+            'note': 'Copyright and license information'
+        }
+
+
+    def get_copyright(self):
+        """
+        Get the current copyright information.
+
+        Returns:
+            The copyright dict if set, None otherwise.
+        """
+        return getattr(self, '_copyright', None)
+
+
 if __name__ == '__main__':
     fnf = FNetF()
     path = os.path.join(os.sep, 'Volumes', 'home', 'FRTB', 'Testing', 'UnitTests_BCBS_FNetF_Generated_v0.8.xlsx')
@@ -1250,4 +1313,3 @@ if __name__ == '__main__':
 
     if CS is not None:
         print(CS)
-

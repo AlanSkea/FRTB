@@ -1,6 +1,6 @@
 # FNet Format (frtb.net Format) Documentation
 
-**Version:** 3.2
+**Version:** 3.3
 **Copyright:** (C) 2024-2025 frtb.net limited
 
 Contact us at <info@frtb.net> or via our website at <https://frtb.net>
@@ -25,22 +25,23 @@ FRTB (Fundamental Review of the Trading Book) sensitivity data and unit tests. T
 and SQLite (.db) representations.
 
 ---
+---
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [File Structure](#file-structure)
-3. [RiskClass Naming Convention](#riskclass-naming-convention)
-4. [Common Fields](#common-fields)
-5. [Market Risk - Sensitivities Based Method (MS_*)](#market-risk---sensitivities-based-method-ms_)
-6. [Market Risk - Default Risk Charge (MD_*)](#market-risk---default-risk-charge-md_)
-7. [Market Risk - Residual Risk Add-On (MR_*)](#market-risk---residual-risk-add-on-mr_)
-8. [CVA Risk - Sensitivities Based Method (CS_*)](#cva-risk---sensitivities-based-method-cs_)
-9. [CVA Risk - Basic Approach (CB_*)](#cva-risk---basic-approach-cb_)
-10. [Unit Test Tabs](#unit-test-tabs)
-11. [CRIF Mapping](#crif-common-risk-interchange-format-mapping)
-12. [Python API Reference](#python-api-reference)
+3. [Common Fields](#common-fields)
+4. [Market Risk - Sensitivities Based Method (MS_*)](#market-risk---sensitivities-based-method-ms_)
+5. [Market Risk - Default Risk Charge (MD_*)](#market-risk---default-risk-charge-md_)
+6. [Market Risk - Residual Risk Add-On (MR_*)](#market-risk---residual-risk-add-on-mr_)
+7. [CVA Risk - Sensitivities Based Method (CS_*)](#cva-risk---sensitivities-based-method-cs_)
+8. [CVA Risk - Basic Approach (CB_*)](#cva-risk---basic-approach-cb_)
+9. [Unit Test Tabs](#unit-test-tabs)
+10. [CRIF Mapping](#crif-common-risk-interchange-format-mapping)
+11. [Python API Reference](#python-api-reference)
 
+---
 ---
 
 ## Overview
@@ -49,25 +50,85 @@ FNet Format is a standardized format for storing:
 - **Sensitivity data** for FRTB capital calculations
 - **Unit test definitions** with benchmark results for validation
 
-The format can be stored in three equivalent representations:
+The format is defined here in three equivalent representations:
 - **Excel format** (.xlsx): Each RiskClass is a separate worksheet tab
 - **JSON format** (.json): Structured document with equivalent data
-- **SQLite format** (.db, .sqlite): Relational database with lazy loading support
+- **SQLite format** (.db, .sqlite): relational database schema
 
-It closely adheres to the representation needed for calculation and specifies the record structures for different Risk Classes separately for clarity when reading and ease of use in code.
+The format is designed to closely adheres to the representation needed for calculation and the record structures for each different Risk Class is tailored for the requrements if that Risk Class.  This helps with clarity when reading and with ease of use in code.
+
+The easiest way to get an overview of the structure is to look at the spreadsheets in the Examples folder of the FRTB
+calculator.  You'll quickly see the structure of the format and this document provides a more formal specification of
+the format with data types and in all the various representations (Excel, JSON, SQL).
 
 ### Portfolio Segmentation
 
-Sensitivities are organised using two grouping fields.  The combination of these fields define separate portfolios that are each computed stand-alone in the frtb.net calculators.  The intent is to allow the calculators to be called with data from many legal entities with various stand-alone partitions and be able to compute the entire capital in one run.  The grouping fiels are:
+Sensitivities are organised using two grouping fields.  Each unique combination of these two fields defines a separate portfolio that should be computed stand-alone in the frtb.net calculators.  The intent is to allow the calculators to be called with data from many legal entities with various stand-alone partitions and be able to compute the entire capital in one run.  The grouping fiels are:
 
 1. **RiskGroup** - Used to separate sensitivities into portfolios sets.  Each set might comprise a number of subsets to be computed stand-alone and then combined to give the RiskGroup capital. A RiskGroup might be a single reporting legal entity.
 
 2. **RiskSubGroup** - Used to identify partitions within a RiskGroup portfolio that must be kept separate. Examples include:
    - **Internal Risk Transfer (IRT) desk** - positions transferred between the banking book and trading book - these must be computed stand-alone
-   - **Credit Securitisations (mandate-based approach)** - securitisation positions computed using the mandate-based approach - each of these must be computed stand-alone
+   - **Credit Securitisations (mandate-based approach)** - when capitl for securitisation positions is computed using the mandate-based approach then each of these positions must be computed stand-alone
    - **Divisional analysis** - to evaluate the contribution to capital of a divisions or desks within a legal entity (e.g., for capital utilisation reporting)
    - **IMA Desk calculations**  When using IMA the PLAT (P&L Attribution Test) rules require the ability to compute the desk under Standardised Approach in order to be able to compute the caopital add-on when PLAT for the desk is inthe amber zone.
 
+### RiskClass Naming Convention
+
+RiskClasses follow a systematic naming pattern:
+
+```
+[Type][Method]_[AssetClass][RiskMeasureType]
+```
+
+### First Character - Risk Type
+| Code | Meaning |
+|------|---------|
+| `M` | Market Risk |
+| `C` | CVA (Credit Valuation Adjustment) |
+
+### Second Character - Calculation Method
+| Code | Meaning |
+|------|---------|
+| `S` | SBM (Sensitivities Based Method) |
+| `D` | DRC (Default Risk Charge) |
+| `R` | RRAO (Residual Risk Add-On) |
+| `B` | BA-CVA (Basic Approach CVA) |
+
+### Asset Class
+
+The asset class codes are mostly the same for Market Risk and CVA, but not quite.
+
+| Code | Risk Type | Asset Class |
+|-|-|-|
+| `IR` | Market Risk | Interest Rates |
+| `CR` | Market Risk | Credit Non-Securitisations |
+| `CC` | Market Risk | Credit Securitisations - Correlation Portfolio |
+| `CS` | Market Risk | Credit Securitisations - Non-Correlation Portfolio |
+| `EQ` | Market Risk | Equities |
+| `CM` | Market Risk | Commodities |
+| `FX` | Market Risk | Foreign Exchange |
+| `IR` | CVA | Interest Rates |
+| `CR` | CVA | Reference Credit Spread |
+| `CC` | CVA | Counterparty Credit Spread |
+| `EQ` | CVA | Equities |
+| `CM` | CVA | Commodities |
+| `FX` | CVA | Foreign Exchange |
+
+### Risk Measure Types (SBM only)
+| Suffix | Risk Type |
+|--------|-----------|
+| `Delta` | Delta sensitivity |
+| `Vega` | Vega sensitivity |
+| `Curvature` | Curvature risk |
+
+### Examples
+- `MS_IRDelta` = Market Risk, SBM, Interest Rate Delta
+- `MD_CR_DRC` = Market Risk, DRC, Credit Non-Securitisations
+- `CS_CCDelta` = CVA Risk, SBM, Counterpart Credit Spread Delta
+- `MR_RRAO` = Market Risk, Residual Risk Add-On
+
+---
 ### SubBuckets in SBM
 
 SubBuckets are not formally defined in the Basel standard (nor in jurisdiction-specific regulations that derive from it), but they provide a useful way to partition a bucket when products within that bucket attract different risk weights.
@@ -85,6 +146,7 @@ Defining these as SubBuckets allows specificaiton of the Risk Weights at a SubBu
 All SubBuckets within a Bucket are treated as part of the same bucket for correlation and aggregation purposes in the later stages of the capital calculation.  This approach can be used consistently across all SBM Risk Classes.
 
 
+---
 ---
 
 ## File Structure
@@ -156,6 +218,7 @@ The SQLite format stores data in a relational database with the following schema
 
 | Table Name | Description |
 |------------|-------------|
+| `copyright` | Copyright and license information (optional) |
 | `parameters` | Key-value pairs for file metadata |
 | `risk_groups` | Unique (RiskGroup, RiskSubGroup) combinations |
 | `schema_info` | Schema version and format metadata |
@@ -194,8 +257,21 @@ CREATE TABLE schema_info (
 ```
 
 Contains:
-- `FNetFormatVersion` - The FNet Format version (e.g., "3.0")
+- `FNetFormatVersion` - The FNet Format version (e.g., "3.3")
 - `DatabaseSchemaVersion` - The database schema version (e.g., "1.0")
+
+#### Copyright Table
+
+```sql
+CREATE TABLE copyright (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    value TEXT,
+    type TEXT,
+    note TEXT
+);
+```
+
+Stores copyright information. The `value` column contains JSON-encoded array of text lines. The `id` is constrained to 1 to ensure only one copyright entry exists.
 
 #### Sensitivity Tables
 
@@ -285,59 +361,10 @@ The SQLite format provides several advantages:
 2. **Efficient Filtering** - Use SQL WHERE clauses to filter by RiskGroup, RiskSubGroup, or Sensitivity ID
 3. **Pagination** - Use LIMIT and OFFSET for processing large datasets in chunks
 4. **Concurrent Access** - Multiple readers can access the database simultaneously
-5. **Compact Storage** - Binary format is often smaller than Excel or JSON
-6. **Self-Describing Schema** - Table structure is discoverable via `sqlite_master` and `PRAGMA table_info`
+5. **Self-Describing Schema** - Table structure is discoverable via `sqlite_master` and `PRAGMA table_info`
 
 ---
-
-## RiskClass Naming Convention
-
-RiskClasses follow a systematic naming pattern:
-
-```
-[Regulation][Method]_[AssetClass][RiskType]
-```
-
-### First Character - Regulation Type
-| Code | Meaning |
-|------|---------|
-| `M` | Market Risk |
-| `C` | CVA (Credit Valuation Adjustment) |
-
-### Second Character - Calculation Method
-| Code | Meaning |
-|------|---------|
-| `S` | SBM (Sensitivities Based Method) |
-| `D` | DRC (Default Risk Charge) |
-| `R` | RRAO (Residual Risk Add-On) |
-| `B` | BA-CVA (Basic Approach CVA) |
-
-### After Underscore - Asset Class
-| Code | Asset Class |
-|------|-------------|
-| `IR` | Interest Rate |
-| `CR` | Credit Spread (Non-Securitisation) |
-| `CC` | Credit Spread (Correlation - Securitisation) |
-| `CS` | Credit Spread (Securitisation Non-Correlation) |
-| `EQ` | Equity |
-| `CM` | Commodity |
-| `FX` | Foreign Exchange |
-
-### Risk Types (SBM only)
-| Suffix | Risk Type |
-|--------|-----------|
-| `Delta` | Delta sensitivity |
-| `Vega` | Vega sensitivity |
-| `Curvature` | Curvature risk |
-
-### Examples
-- `MS_IRDelta` = Market Risk, SBM, Interest Rate, Delta
-- `MD_CR_DRC` = Market Risk, DRC, Credit (Non-Securitisation)
-- `CS_CCDelta` = CVA Risk, SBM, Credit Correlation, Delta
-- `MR_RRAO` = Market Risk, Residual Risk Add-On
-
 ---
-
 ## Common Fields
 
 All RiskClass sheets/objects contain these common fields:
@@ -849,7 +876,7 @@ Credit spread sensitivity to counterparty credit.
 | `SubBucket` | str | Sub-bucket (e.g., `a`, `b`) |
 | `CreditName` | str | Counterparty name |
 | `ParentName` | str | Ultimate parent of counterparty |
-| `IG_HYNR` | str | `IG` (Investment Grade), `HY` (High Yield), or `NR` (Not Rated) |
+| `IG_HYNR` | str | `IG` (Investment Grade), `HYNR` (High Yield or Not Rated) |
 | `Tenor` | str | Tenor point |
 | `Sensitivity` | float64 | Portfolio sensitivity |
 | `HedgeSensitivity` | float64 | Hedge sensitivity |
@@ -964,104 +991,252 @@ Full version including eligible hedges.
 
 ## Unit Test Tabs
 
-FNet Format supports four types of unit test tabs for validation:
+FNet Format supports four types of unit test tabs for validation. Each test type validates a different stage of the FRTB capital calculation pipeline.
 
 ### Test Tab Types
 
 | Tab Name | Purpose |
 |----------|---------|
-| `ObligorTests` | Tests at the obligor/entity level |
-| `FactorTests` | Tests at the risk factor level |
-| `BucketTests` | Tests at the bucket aggregation level |
-| `CapitalTests` | Tests for full capital calculation |
+| `ObligorTests` | Tests obligor-level netting for Default Risk Charge (DRC) calculations |
+| `FactorTests` | Tests risk weight application and factor-level aggregation |
+| `BucketTests` | Tests intra-bucket correlation and aggregation |
+| `CapitalTests` | Tests risk class level capital aggregation across buckets |
 
 ### Common Test Columns
 
+All four test types share these common columns:
+
 | Column | Type | Description |
 |--------|------|-------------|
-| `Test ID` | str | Unique test identifier |
-| `RiskGroup` | str | Risk group for filtering |
-| `RiskSubGroup` | str | Risk sub-group |
+| `Test ID` | str | Unique test identifier (format: `{RiskClass[:5]}_{sequence:06d}`) |
+| `RiskGroup` | str | Risk group for filtering (typically `UnitTests`) |
+| `RiskSubGroup` | str | Risk sub-group (typically `Main`) |
 | `RiskClass` | str | Target RiskClass being tested |
-| `Description` | str | Human-readable test description |
+| `Description` | str | Human-readable test description with parameter values |
 | `Sensitivity IDs` | str | Comma-separated list of sensitivity IDs or prefix patterns |
 
-### Benchmark Columns
+### ObligorTests Benchmark Columns
 
-After the metadata columns, test tabs contain benchmark result columns:
+ObligorTests validate the netting of Jump-to-Default (JTD) exposures at the obligor level for Default Risk Charge calculations.
 
-| Column Pattern | Description |
-|----------------|-------------|
-| `Benchmark_SbAlt_Medium` | Alternative scenario - medium correlation |
-| `Benchmark_SbAlt_Low` | Alternative scenario - low correlation |
-| `Benchmark_SbAlt_High` | Alternative scenario - high correlation |
-| `Benchmark_SumSb` | Sum of bucket-level results |
-| `Benchmark_Medium` | Main result - medium correlation scenario |
-| `Benchmark_Low` | Main result - low correlation scenario |
-| `Benchmark_High` | Main result - high correlation scenario |
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_NetJTDShort` | float64 | Net short JTD exposure after obligor-level netting |
+| `Benchmark_NetJTDLong` | float64 | Net long JTD exposure after obligor-level netting |
+
+**Applicable RiskClasses:** `MD_CR_DRC`, `MD_CC_DRC`, `MD_CS_DRC`
+
+### FactorTests Benchmark Columns
+
+FactorTests validate risk weight application and factor-level calculations. The benchmark columns vary by RiskClass type:
+
+#### Curvature RiskClasses (MS_*Curvature)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_CVR-` | float64 | Curvature risk for downward shock |
+| `Benchmark_CVR+` | float64 | Curvature risk for upward shock |
+
+#### Default Risk Charge RiskClasses (MD_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_NetJTDShort` | float64 | Net short JTD exposure |
+| `Benchmark_NetJTDLong` | float64 | Net long JTD exposure |
+| `Benchmark_WeightedNetJTDShort` | float64 | Risk-weighted net short JTD |
+| `Benchmark_WeightedNetJTDLong` | float64 | Risk-weighted net long JTD |
+
+#### Residual Risk Add-On RiskClasses (MR_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_NotionalAmount` | float64 | Aggregated notional amount |
+| `Benchmark_RiskWeight` | float64 | Applied risk weight |
+| `Benchmark_WeightedNotionalAmount` | float64 | Risk-weighted notional |
+
+#### SBM Delta/Vega RiskClasses (MS_*Delta, MS_*Vega)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_RiskWeight` | float64 | Applied risk weight |
+| `Benchmark_Sensitivity` | float64 | Raw sensitivity value |
+| `Benchmark_WeightedSensitivity` | float64 | Risk-weighted sensitivity (WS) |
+
+#### CVA SBM RiskClasses (CS_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_RiskWeight` | float64 | Applied risk weight |
+| `Benchmark_Sensitivity` | float64 | Portfolio sensitivity |
+| `Benchmark_WeightedSensitivity` | float64 | Risk-weighted portfolio sensitivity |
+| `Benchmark_HedgeSensitivity` | float64 | Hedge sensitivity |
+| `Benchmark_WeightedHedgeSensitivity` | float64 | Risk-weighted hedge sensitivity |
+
+### BucketTests Benchmark Columns
+
+BucketTests validate intra-bucket correlation and aggregation to produce bucket-level capital (Kb).
+
+#### SBM Delta/Vega RiskClasses (MS_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_Sb` | float64 | Sum of weighted sensitivities in the bucket |
+| `Benchmark_Kb_M` | float64 | Bucket capital at medium correlation |
+| `Benchmark_Kb_L` | float64 | Bucket capital at low correlation |
+| `Benchmark_Kb_H` | float64 | Bucket capital at high correlation |
+
+#### CVA SBM RiskClasses (CS_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_Sb` | float64 | Sum of weighted sensitivities in the bucket |
+| `Benchmark_Kb_M` | float64 | Bucket capital at medium correlation |
+
+**Note:** CVA risk uses only medium correlation scenario.
+
+#### Default Risk and Residual Risk RiskClasses (MD_*, MR_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_Kb_M` | float64 | Bucket capital at medium correlation |
+
+### CapitalTests Benchmark Columns
+
+CapitalTests validate the final aggregation of bucket capitals to produce risk class level capital.
+
+#### SBM Delta/Vega RiskClasses (MS_* non-Curvature)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_SbAlt_Medium` | float64 | Alternative bucket sum (Sb_alt) at medium correlation |
+| `Benchmark_SbAlt_Low` | float64 | Alternative bucket sum at low correlation |
+| `Benchmark_SbAlt_High` | float64 | Alternative bucket sum at high correlation |
+| `Benchmark_SumSbAlt_Low` | float64 | Sum of Sb_alt across buckets at low correlation |
+| `Benchmark_SumSbAlt_Medium` | float64 | Sum of Sb_alt across buckets at medium correlation |
+| `Benchmark_SumSbAlt_High` | float64 | Sum of Sb_alt across buckets at high correlation |
+| `Benchmark_SumSb` | float64 | Sum of Sb across all buckets |
+| `Benchmark_Medium` | float64 | Risk class capital at medium correlation |
+| `Benchmark_Low` | float64 | Risk class capital at low correlation |
+| `Benchmark_High` | float64 | Risk class capital at high correlation |
+
+#### SBM Curvature RiskClasses (MS_*Curvature)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_SumSbAlt_Low` | float64 | Sum of Sb_alt across buckets at low correlation |
+| `Benchmark_SumSbAlt_Medium` | float64 | Sum of Sb_alt across buckets at medium correlation |
+| `Benchmark_SumSbAlt_High` | float64 | Sum of Sb_alt across buckets at high correlation |
+| `Benchmark_SumSb` | float64 | Sum of Sb across all buckets |
+| `Benchmark_Medium` | float64 | Risk class capital at medium correlation |
+| `Benchmark_Low` | float64 | Risk class capital at low correlation |
+| `Benchmark_High` | float64 | Risk class capital at high correlation |
+
+#### CVA SBM RiskClasses (CS_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_SbAlt_Medium` | float64 | Alternative bucket sum at medium correlation |
+| `Benchmark_SumSb` | float64 | Sum of Sb across all buckets |
+| `Benchmark_Medium` | float64 | Risk class capital at medium correlation |
+
+**Note:** CVA risk uses only medium correlation scenario.
+
+#### Default Risk and Residual Risk RiskClasses (MD_*, MR_*)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Benchmark_Medium` | float64 | Risk class capital |
+
+**Note:** DRC and RRAO do not use correlation scenarios.
 
 ### Sensitivity IDs Syntax
 
-The `Sensitivity IDs` field supports:
+The `Sensitivity IDs` field supports several formats for referencing sensitivities:
 
 1. **Single ID:** `MS_IRD_00000`
 2. **Multiple IDs:** `MS_IRD_00000, MS_IRD_00001, MS_IRD_00002`
 3. **ALL prefix:** `ALL MS_IRD_` - includes all sensitivities starting with the prefix
 4. **Mixed:** `MS_IRD_00000, ALL MS_IRD_001` - explicit IDs followed by prefix patterns
 
+Sensitivity IDs follow the format `{RiskClass[:6]}_{bucketTag}{groupTag}_{sequence:04d}`, for example `MS_CMD_1a_0001` represents a Commodity Delta sensitivity in bucket 1, sub-bucket a.
+
 ### Test Description Patterns
 
-| Pattern | Description |
-|---------|-------------|
-| `Factor aggregation and weighting: ...` | Single factor weighting test |
-| `Intra-bucket correlations: Bucket=X` | Within-bucket correlation test |
-| `Bucket aggregation` | Full bucket aggregation (uses ALL prefix) |
+Test descriptions follow consistent patterns based on what is being tested:
 
-### Excel Example - CapitalTests
+| Test Type | Pattern | Description |
+|-----------|---------|-------------|
+| FactorTests | `Factor aggregation and weighting: Bucket=X, ...` | Single factor risk weight application |
+| BucketTests | `Intra-bucket correlations: Bucket=X` | Correlation within a single bucket |
+| BucketTests | `Intra-bucket correlations: Plus/Minus/All` | Multiple sensitivities within bucket |
+| CapitalTests | `Non-floored buckets: ...` | Capital without floor constraints |
+| CapitalTests | `Floored buckets: ...` | Capital with floor constraints applied |
+| CapitalTests | `All factors` | Full risk class aggregation |
+| ObligorTests | `Long only/Short only/Net long/Net short` | JTD netting scenarios |
 
-| Test ID | RiskClass | Description | Sensitivity IDs | Benchmark_Medium |
-|---------|-----------|-------------|-----------------|------------------|
-| MS_IR_000000 | MS_IRDelta | Factor aggregation and weighting: Bucket=EUR, Tenor=0.25 | MS_IRD_00000 | 12.020815 |
-| MS_IR_000037 | MS_IRDelta | Intra-bucket correlations: Bucket=EUR | MS_IRD_00000, MS_IRD_00001, ... | 156.789 |
-| MS_IR_000043 | MS_IRDelta | Bucket aggregation | ALL MS_IRD_ | 1234.567 |
+### Excel Examples
+
+#### ObligorTests Example
+
+| Test ID | RiskClass | Description | Sensitivity IDs | Benchmark_NetJTDLong | Benchmark_NetJTDShort |
+|---------|-----------|-------------|-----------------|----------------------|-----------------------|
+| MD_CR_000000 | MD_CR_DRC | Net long netting: Obligor=A | MD_CR__00000, MD_CR__00001 | 500.0 | 0.0 |
+
+#### FactorTests Example
+
+| Test ID | RiskClass | Description | Sensitivity IDs | Benchmark_RiskWeight | Benchmark_Sensitivity | Benchmark_WeightedSensitivity |
+|---------|-----------|-------------|-----------------|----------------------|-----------------------|-------------------------------|
+| MS_IR_000000 | MS_IRDelta | Factor aggregation and weighting: Bucket=EUR, Tenor=0.25 | MS_IRD_00000 | 0.012 | 1000.0 | 12.0 |
+
+#### BucketTests Example
+
+| Test ID | RiskClass | Description | Sensitivity IDs | Benchmark_Sb | Benchmark_Kb_M | Benchmark_Kb_L | Benchmark_Kb_H |
+|---------|-----------|-------------|-----------------|--------------|----------------|----------------|----------------|
+| MS_IR_000037 | MS_IRDelta | Intra-bucket correlations: Bucket=EUR | MS_IRD_00000, MS_IRD_00001 | 24.0 | 156.789 | 145.234 | 168.345 |
+
+#### CapitalTests Example
+
+| Test ID | RiskClass | Description | Sensitivity IDs | Benchmark_SumSb | Benchmark_Medium | Benchmark_Low | Benchmark_High |
+|---------|-----------|-------------|-----------------|-----------------|------------------|---------------|----------------|
+| MS_IR_000043 | MS_IRDelta | All factors | ALL MS_IRD_ | 1234.567 | 1234.567 | 1111.111 | 1358.024 |
 
 ### JSON Example - _tests Structure
 
 ```json
 {
   "_tests": {
-    "CapitalTests": {
-      "columns": [
-        "Test ID",
-        "RiskClass",
-        "Description",
-        "Sensitivity IDs",
-        "RiskGroup",
-        "RiskSubGroup",
-        "Benchmark_SbAlt_Medium",
-        "Benchmark_SbAlt_Low",
-        "Benchmark_SbAlt_High",
-        "Benchmark_SumSb",
-        "Benchmark_Medium",
-        "Benchmark_Low",
-        "Benchmark_High"
-      ],
+    "ObligorTests": {
+      "columns": ["Test ID", "RiskClass", "Description", "Sensitivity IDs", "RiskGroup", "RiskSubGroup",
+                  "Benchmark_NetJTDLong", "Benchmark_NetJTDShort"],
       "data": [
-        [
-          "MS_IR_000000",
-          "MS_IRDelta",
-          "Factor aggregation and weighting: Bucket=EUR, CurveType=IR, Curve=IR_Curve_A, Tenor=0.25",
-          "MS_IRD_00000",
-          "UnitTests",
-          "Main",
-          0.0,
-          0.0,
-          0.0,
-          12.020815,
-          12.020815,
-          12.020815,
-          12.020815
-        ]
+        ["MD_CR_000000", "MD_CR_DRC", "Net long netting: Obligor=A", "MD_CR__00000, MD_CR__00001",
+         "UnitTests", "Main", 500.0, 0.0]
+      ]
+    },
+    "FactorTests": {
+      "columns": ["Test ID", "RiskClass", "Description", "Sensitivity IDs", "RiskGroup", "RiskSubGroup",
+                  "Benchmark_RiskWeight", "Benchmark_Sensitivity", "Benchmark_WeightedSensitivity"],
+      "data": [
+        ["MS_IR_000000", "MS_IRDelta", "Factor aggregation and weighting: Bucket=EUR, Tenor=0.25",
+         "MS_IRD_00000", "UnitTests", "Main", 0.012, 1000.0, 12.0]
+      ]
+    },
+    "BucketTests": {
+      "columns": ["Test ID", "RiskClass", "Description", "Sensitivity IDs", "RiskGroup", "RiskSubGroup",
+                  "Benchmark_Sb", "Benchmark_Kb_M", "Benchmark_Kb_L", "Benchmark_Kb_H"],
+      "data": [
+        ["MS_IR_000037", "MS_IRDelta", "Intra-bucket correlations: Bucket=EUR",
+         "MS_IRD_00000, MS_IRD_00001", "UnitTests", "Main", 24.0, 156.789, 145.234, 168.345]
+      ]
+    },
+    "CapitalTests": {
+      "columns": ["Test ID", "RiskClass", "Description", "Sensitivity IDs", "RiskGroup", "RiskSubGroup",
+                  "Benchmark_SbAlt_Medium", "Benchmark_SbAlt_Low", "Benchmark_SbAlt_High",
+                  "Benchmark_SumSbAlt_Low", "Benchmark_SumSbAlt_Medium", "Benchmark_SumSbAlt_High",
+                  "Benchmark_SumSb", "Benchmark_Medium", "Benchmark_Low", "Benchmark_High"],
+      "data": [
+        ["MS_IR_000043", "MS_IRDelta", "All factors", "ALL MS_IRD_", "UnitTests", "Main",
+         0.0, 0.0, 0.0, 1234.567, 1234.567, 1234.567, 1234.567, 1234.567, 1111.111, 1358.024]
       ]
     }
   }
@@ -1369,7 +1544,7 @@ CVA sensitivities in CRIF use `Label2` to distinguish between CVA portfolio sens
 | `Label1` | `Tenor` | Credit tenor |
 | `Label2` | (CVA/HDG) | CVA/Hedge indicator |
 | `Label3` | `ParentName` | Ultimate parent |
-| `CreditQuality` | `IG_HYNR` | `IG`, `HY`, or `NR` |
+| `CreditQuality` | `IG_HYNR` | `IG`, `HYNR` |
 | `Amount` | `Sensitivity` or `HedgeSensitivity` | Based on Label2 |
 
 ### BA-CVA Mapping
@@ -1382,7 +1557,7 @@ CVA sensitivities in CRIF use `Label2` to distinguish between CVA portfolio sens
 | `Label1` | `NettingSetMaturity` | Effective maturity |
 | `Label2` | `Region` | Geographic region |
 | `Label3` | `CounterpartyGroup` | Grouping for netting |
-| `CreditQuality` | `IG_HYNR` | `IG`, `HY`, or `NR` |
+| `CreditQuality` | `IG_HYNR` | `IG`, `HYNR` |
 | `UltimateParent` | `ParentName` | Ultimate parent |
 | `Amount` | `EAD` | Exposure at Default |
 
@@ -1522,6 +1697,50 @@ Saves FNet Format data to a file. The format is auto-detected based on file exte
 **Example:**
 ```python
 fnf.save('output.db')
+```
+
+#### Copyright Methods
+
+```python
+fnf.set_copyright() -> None
+```
+Sets the copyright to the standard proprietary license text. This will be saved in the output file (JSON, Excel, or SQLite).
+
+```python
+fnf.set_copyleft() -> None
+```
+Sets the copyright to the AGPL copyleft license text. This will be saved in the output file (JSON, Excel, or SQLite).
+
+```python
+fnf.set_copyright_text(text: str | List[str]) -> None
+```
+Sets the copyright to custom text. If a string is provided, it will be split on newlines. If a list is provided, each element becomes a line.
+
+```python
+fnf.get_copyright() -> Dict | None
+```
+Returns the current copyright information as a dictionary with keys `value` (list of lines), `type`, and `note`. Returns None if no copyright is set.
+
+**Example:**
+```python
+fnf = FNetF()
+fnf.load('data.xlsx')
+
+# Set standard proprietary copyright
+fnf.set_copyright()
+
+# Or set AGPL copyleft
+fnf.set_copyleft()
+
+# Or set custom text
+fnf.set_copyright_text("Copyright 2025 My Company\nAll rights reserved.")
+
+# Check what's set
+copyright_info = fnf.get_copyright()
+if copyright_info:
+    print(copyright_info['value'])  # List of lines
+
+fnf.save('output.xlsx')
 ```
 
 #### Parameter Methods
@@ -2020,6 +2239,7 @@ python FNetFConverter.py original.xlsx --compare converted.db
 | 3.0 | 2024 | Initial version with Excel and JSON support |
 | 3.1 | 2025 | Added SQLite format with lazy loading support |
 | 3.2 | 2025 | Enhanced FNetF class with lazy loading mode, filtering parameters in getRiskClassData, context manager support, and find_database utility |
+| 3.3 | 2025 | Added copyright support: `set_copyright()`, `set_copyleft()`, `set_copyright_text()`, and `get_copyright()` methods; copyright is now saved/loaded in all formats (Excel, JSON, SQLite) |
 
 ---
 

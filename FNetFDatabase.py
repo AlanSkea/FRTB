@@ -137,6 +137,16 @@ class FNetFDatabase:
         """Create the database schema."""
         cursor = conn.cursor()
 
+        # Copyright table (stores copyright info as JSON)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS copyright (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                value TEXT,
+                type TEXT,
+                note TEXT
+            )
+        ''')
+
         # Parameters table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS parameters (
@@ -285,6 +295,17 @@ class FNetFDatabase:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
+            # Write copyright if set
+            copyright_info = fnetf.get_copyright()
+            if copyright_info:
+                import json
+                cursor.execute(
+                    'INSERT OR REPLACE INTO copyright (id, value, type, note) VALUES (1, ?, ?, ?)',
+                    (json.dumps(copyright_info.get('value', [])),
+                     copyright_info.get('type', 'text'),
+                     copyright_info.get('note', ''))
+                )
+
             # Write parameters
             params = fnetf.getParams()
             for key, value in params.items():
@@ -429,6 +450,11 @@ class FNetFDatabase:
             raise FileNotFoundError(f"Database '{self._db_path}' not found")
 
         with self._get_connection() as conn:
+            # Load copyright if present
+            copyright_info = self._read_copyright(conn)
+            if copyright_info:
+                fnetf._copyright = copyright_info
+
             # Load parameters
             params = self._read_parameters(conn)
             for key, value in params.items():
@@ -455,6 +481,24 @@ class FNetFDatabase:
                 if df is not None and not df.empty:
                     for _, r in df[['RiskGroup', 'RiskSubGroup']].drop_duplicates().iterrows():
                         fnetf._riskGroups.add((r['RiskGroup'], r['RiskSubGroup']))
+
+    def _read_copyright(self, conn):
+        """Read copyright information from the database."""
+        import json
+        cursor = conn.cursor()
+        # Check if copyright table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='copyright'")
+        if not cursor.fetchone():
+            return None
+        cursor.execute('SELECT value, type, note FROM copyright WHERE id = 1')
+        row = cursor.fetchone()
+        if row:
+            return {
+                'value': json.loads(row['value']) if row['value'] else [],
+                'type': row['type'] or 'text',
+                'note': row['note'] or ''
+            }
+        return None
 
     def _read_parameters(self, conn):
         """Read all parameters from the database."""
