@@ -71,7 +71,7 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
 
     # idx is the row index for the array, if there is one
     # cols is the column index for the array, if there is one
-    # __processKey gets these fromt the enclosing scope
+    # __processKey gets these from the enclosing scope
     dataDict = {}
     k = None
     name = ''
@@ -134,7 +134,7 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
             cols = None
             values = []
 
-            # if we have columnheaderes on this item then collect them
+            # if we have column headeres on this item then collect them
             if k in colHdrKeys:
                 if k in rowHdrKeys:
                     name = r.at[1]
@@ -144,9 +144,13 @@ def extractKeyedData(sourceName, df, dataTypes, listKeys=[], arrayKeys=[], rowHd
 
                 continue
 
+        # Ignore rows that only have noise at the rght.  All vaild rows have data in col 2.
+        if r.at[1] == '':
+            continue
+
         col = 1
 
-        # if we have row headers then collect the hearder on this row
+        # if we have row headers then collect the header on this row
         if k in rowHdrKeys:
             if r.at[col] != '':     # can this happen except on last row?
                 idx.append(r.at[col])

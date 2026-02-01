@@ -57,7 +57,7 @@ def summariseCapital(ds):
 
 if __name__ == '__main__':
     regulator = 'BCBS'
-    testVersion = '0.9'
+    testVersion = '0.98'
     path = os.path.dirname(__file__)
     infile = os.path.join(path, f'UnitTests_{regulator}_FNetF_v{testVersion}.xlsx')
     outfile = os.path.join(path, f'UnitTests_{regulator}_FNetF_v{testVersion}_out.xlsx')
@@ -69,28 +69,37 @@ if __name__ == '__main__':
     calculators = {}
 
     grp1 = CS.loc['CapitalTests', :]
-    testSetCapital = pd.DataFrame()
+
+    # Collect results in lists to avoid O(n²) concat-in-loop pattern
+    allComboResults = []
 
     for combo, grp2 in grp1.groupby('Test ID'):
-        comboRCcapital = pd.DataFrame()
+        comboCapResults = []
 
         for riskClass, grp3 in grp2.groupby('RiskClass'):
             df = fnf.getRiskClassData(riskClass)
             df = df[df['Sensitivity ID'].isin(grp3['Sensitivity ID'])]
 
-            if riskClass in calculators.keys():
-                calc = calculators[riskClass]
+            calcKey = riskClass[:5]
+            if calcKey in calculators:
+                calc = calculators[calcKey]
             else:
-                calc = frtb.FRTBCalculator.create(riskClass[:5], regulator, ccy, cob)
-                calculators[riskClass] = calc
+                calc = frtb.FRTBCalculator.create(calcKey, regulator, ccy, cob)
+                calculators[calcKey] = calc
 
             capRes = calc.calcRiskClassCapital(riskClass, df)
             cap = summariseCapital(capRes)
             cap.loc[:, 'Test ID'] = combo
-            comboRCcapital = pd.concat([comboRCcapital, cap.T], axis=1)
+            comboCapResults.append(cap.T)
 
-        comboRCcapital = comboRCcapital.T.groupby('Test ID').sum()
-        testSetCapital = pd.concat([testSetCapital, comboRCcapital], axis=0)
+        # Concat once per combo instead of per riskClass
+        if comboCapResults:
+            comboRCcapital = pd.concat(comboCapResults, axis=1)
+            comboRCcapital = comboRCcapital.T.groupby('Test ID').sum()
+            allComboResults.append(comboRCcapital)
+
+    # Concat all combo results once at the end
+    testSetCapital = pd.concat(allComboResults, axis=0) if allComboResults else pd.DataFrame()
 
     testSetBenchmark = fnf.getUnitTests('CapitalTests')
     testSetCapital = testSetBenchmark.merge(testSetCapital, how="right", on='Test ID')

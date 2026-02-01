@@ -75,8 +75,8 @@ class MR_RR_SA_RRAO(FRTBCalculator.FRTBCalculator):
         # factor into a single row.  In RRAO the buckets are artificial and there are no factor
         # attributes.  This exists just so it can be called consistently with the other calculators.
         #
-        factorFields = []
-        valueFields = ['NotionalAmount', 'RiskWeight', 'WeightedNotionalAmount']
+        factorFields = ['RiskWeight']
+        valueFields = ['NotionalAmount', 'WeightedNotionalAmount']
         ndf = df[['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields + valueFields].groupby(['RiskGroup', 'RiskSubGroup', 'RiskClass', 'Bucket'] + factorFields, dropna=False).sum().reset_index()
         return ndf
 
